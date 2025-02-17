@@ -1,11 +1,13 @@
 import urwid
 import rclpy
 from keyboard_mode_interface_pkg.ros_pub_sub import ROS2Manager
+from keyboard_mode_interface_pkg.mode_manager import ModeManager
 
 
 class MenuApp:
-    def __init__(self, ros_manager):
+    def __init__(self, ros_manager, mode_manager):
         self.ros_manager = ros_manager
+        self.mode_manager = mode_manager
 
         # 這個 Text 用來顯示動態的「Pressed key: ...」訊息
         self.pressed_key_text = urwid.Text("", align="center")
@@ -116,9 +118,13 @@ class MenuApp:
             big_heading = self.get_big_heading()
             sub_heading = self.get_sub_heading(big_heading)
 
-            self.pressed_key_text.set_text(
-                f"Pressed key: 大標題={big_heading}, 子標題={sub_heading}, key={key}"
-            )
+            pressed_key_info = f"{big_heading}:{sub_heading}:{key}"
+            test = self.mode_manager.update_mode(pressed_key_info)
+            # self.pressed_key_text.set_text(
+            #     f"Pressed key: 大標題={big_heading}, 子標題={sub_heading}, key={key}"
+            # )
+
+            self.pressed_key_text.set_text(f"test: {test}")
 
     def get_big_heading(self):
         """
@@ -166,7 +172,8 @@ class MenuApp:
 def main():
     rclpy.init()
     ros_manager = ROS2Manager()
-    app = MenuApp(ros_manager)
+    mode_manager = ModeManager(ros_manager)
+    app = MenuApp(ros_manager, mode_manager)
     try:
         app.run()
     finally:
