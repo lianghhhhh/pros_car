@@ -6,7 +6,6 @@ from std_msgs.msg import Float32MultiArray
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
 
 # 請根據你的 package 名稱調整下面這行 import
-from ros_communication_pkg.srv import GetScan
 
 # LiDAR global constants
 LIDAR_RANGE = 90

@@ -11,7 +11,6 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
-        (os.path.join("share", package_name, "srv"), glob("srv/*.srv")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
