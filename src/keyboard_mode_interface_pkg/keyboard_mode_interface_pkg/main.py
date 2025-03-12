@@ -2,6 +2,7 @@ import urwid
 import rclpy
 from keyboard_mode_interface_pkg.ros_pub_sub import ROS2Manager
 from keyboard_mode_interface_pkg.mode_manager import ModeManager
+import os
 
 
 class MenuApp:
@@ -15,6 +16,7 @@ class MenuApp:
         # === 定義選單結構 ===
         self.menu_items = {
             "Control Vehicle": None,  # 沒有子選單
+            "Auto Navigation": {"Start": None, "Stop": None},
             "Manual Arm Control": {
                 "0": None,
                 "1": None,
@@ -28,7 +30,6 @@ class MenuApp:
                 "Rotate Left": None,
                 "Rotate Right": None,
             },
-            "Auto Navigation": {"Start": None, "Stop": None},
             "Automatic Arm Mode": None,  # 沒有子選單
             "Exit": None,
         }
@@ -102,29 +103,29 @@ class MenuApp:
 
     def handle_unhandled_input(self, key):
         """處理未攔截的按鍵，特別是 'q' 用於返回上一層"""
+        big_heading = self.get_big_heading()
+        sub_heading = self.get_sub_heading(big_heading)
+        pressed_key_info = f"{big_heading}:{sub_heading}:{key}"
+        self.mode_manager.update_mode(pressed_key_info)
+
         if key == "q":
+            os.system("clear")
             if self.menu_stack:
                 # 從堆疊彈回上一層
+
                 prev_menu, prev_title = self.menu_stack.pop()
                 self.current_menu = prev_menu
                 self.current_title = prev_title
                 self.header_text.set_text(self.current_title)
-                self.menu.body = urwid.SimpleFocusListWalker(self.create_menu())
+                new_listbox = urwid.ListBox(
+                    urwid.SimpleFocusListWalker(self.create_menu())
+                )
+                self.menu = new_listbox
+                self.main_frame.body = new_listbox
+
             else:
                 # 如果沒有上一層可回，就結束程式
                 raise urwid.ExitMainLoop()
-        else:
-            # 每次按下任意按鍵，都動態顯示 [大標題] 和 [子標題]
-            big_heading = self.get_big_heading()
-            sub_heading = self.get_sub_heading(big_heading)
-
-            pressed_key_info = f"{big_heading}:{sub_heading}:{key}"
-            test = self.mode_manager.update_mode(pressed_key_info)
-            # self.pressed_key_text.set_text(
-            #     f"Pressed key: 大標題={big_heading}, 子標題={sub_heading}, key={key}"
-            # )
-
-            self.pressed_key_text.set_text(f"test: {test}")
 
     def get_big_heading(self):
         """
