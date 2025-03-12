@@ -55,7 +55,7 @@ class ModeManager(Node):
         # 根據目前模式執行對應動作
         if self.current_mode:
             if self.current_mode == "Manual Control":
-
+                self.get_logger().info("模式 Manual Control 運作中...")
             elif self.current_mode == "Manual Nav":
                 self.get_logger().info("模式 Manual Nav 運作中...")
             else:
