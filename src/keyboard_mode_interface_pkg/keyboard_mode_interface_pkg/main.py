@@ -15,8 +15,12 @@ class MenuApp:
 
         # === 定義選單結構 ===
         self.menu_items = {
-            "Control Vehicle": None,  # 沒有子選單
-            "Auto Navigation": {"Start": None, "Stop": None},
+            "Control Vehicle": {
+                "Manual Control": None,
+                "Manual Nav": None,
+                "Auto Nav": None,
+                "Customize Nav": None,
+            },
             "Manual Arm Control": {
                 "0": None,
                 "1": None,
@@ -24,13 +28,13 @@ class MenuApp:
                 "3": None,
                 "4": None,
             },
+            "Automatic Arm Mode": None,  # 沒有子選單
             "Manual Crane Control": {
                 "Lift": None,
                 "Lower": None,
                 "Rotate Left": None,
                 "Rotate Right": None,
             },
-            "Automatic Arm Mode": None,  # 沒有子選單
             "Exit": None,
         }
 
@@ -80,8 +84,6 @@ class MenuApp:
                 raise urwid.ExitMainLoop()  # 直接結束
             else:
                 # 先發送 ROS 指令
-                self.ros_manager.publish_command(choice)
-
                 # 將「目前的狀態」壓到 stack，表示我們要「進入」一個結果畫面
                 self.menu_stack.append((self.current_menu, self.current_title))
 

@@ -8,7 +8,9 @@ class ROSCommunicator(Node):
         super().__init__("ros2_manager")
 
         # Publisher（發送指令給其他節點）
-        self.car_control_publisher = self.create_publisher(String, "car_control", 10)
+        self.car_control_publisher = self.create_publisher(
+            String, "car_control_signal", 10
+        )
 
         self.subscription = self.create_subscription(
             String, "menu_feedback", self.listener_callback, 10
