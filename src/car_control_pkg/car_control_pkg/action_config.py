@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-
-# config.py
-
 """
 vel, rotate_vel為自走車PID數值, 可於arduino程式碼查看
 

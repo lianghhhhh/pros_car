@@ -19,7 +19,7 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "car_control_node = car_control_pkg.mode_manager:main",
+            "car_manual_node = car_control_pkg.car_manual:main",
         ],
     },
 )

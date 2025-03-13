@@ -1,98 +1,104 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionServer, GoalResponse, CancelResponse
+from custome_interfaces.action import MyCustomAction  # 自訂的 Action
 from std_msgs.msg import String
+from car_control_pkg.utils import parse_control_signal
+import math
 
 
-class ModeManager(Node):
+class ManualNavNode(Node):
     def __init__(self):
-        super().__init__("mode_manager")
-        # 訂閱 car_control_signal topic，預期格式例如 "Manual Control:go" 或 "Manual Nav:go"
+        super().__init__("manual_nav_node")
+        # 訂閱 car_control_signal，格式如 "Manual Nav:<command>"
         self.subscription = self.create_subscription(
             String, "car_control_signal", self.key_callback, 10
         )
-        # 建立 timer 定期檢查模式，這裡設定 0.5 秒執行一次
-        self.timer = self.create_timer(0.5, self.mode_loop)
-        # 儲存最新接收到的訊號，格式為 [mode_name, command]
+        # 建立 Action Server 用於 Manual Nav 任務
+        self.action_server = ActionServer(
+            self,
+            MyCustomAction,
+            "manual_nav_action",
+            self.goal_callback,
+            self.cancel_callback,
+            self.execute_callback,
+        )
+        self.current_goal_handle = None
+        self.current_mode = None  # 當前應該為 "Manual Nav"
         self.last_signal = None
-        # 當前模式（例如 "Manual Control" 或 "Manual Nav"）
-        self.current_mode = None
 
     def key_callback(self, msg: String):
-        # 將收到的字串以冒號分隔並去除前後空白
-        car_control_signal = [s.strip() for s in msg.data.split(":")]
-        if len(car_control_signal) >= 2:
-            self.last_signal = car_control_signal
-            self.get_logger().info(f"收到訊號: {car_control_signal}")
+        mode, key = parse_control_signal(msg.data)
+        if len(parts) >= 2 and parts[0] == "Manual Nav":
+            self.last_signal = (mode, command)
+            # 設定模式
+            if self.current_mode is None:
+                self.current_mode = mode
+                self.get_logger().info(f"Manual Nav 模式設定為: {self.current_mode}")
+            self.get_logger().info(f"Manual Nav 收到指令: {parts}")
+            # 如果收到 "q"，取消當前 Action
+            if command == "q" and self.current_goal_handle is not None:
+                self.get_logger().info("Manual Nav: 收到 'q' 指令，取消導航任務")
+                self.current_goal_handle.abort()
         else:
-            self.get_logger().warning("收到格式錯誤的訊號")
+            # 若訊號不屬於 Manual Nav，則忽略
+            pass
 
-    def mode_loop(self):
-        """
-        每次 timer 觸發時：
-          - 檢查是否有新的訊號，若有則根據訊號決定切換模式或退出模式
-          - 若沒有新的訊號，則持續執行目前模式的動作
-        """
-        if self.last_signal:
-            mode_name, command = self.last_signal[0], self.last_signal[1].lower()
-            # 如果指令為 "q"，則停止目前模式
-            if command == "q":
-                self.get_logger().info("收到 'q' 指令，停止目前模式")
-                self.stop_mode()
+    def goal_callback(self, goal_request):
+        self.get_logger().info("Manual Nav: 收到新的 Action 目標，接受目標")
+        return GoalResponse.ACCEPT
+
+    def cancel_callback(self, goal_handle):
+        self.get_logger().info("Manual Nav: 收到取消請求")
+        return CancelResponse.ACCEPT
+
+    async def execute_callback(self, goal_handle):
+        self.get_logger().info("Manual Nav: 開始執行 Action")
+        self.current_goal_handle = goal_handle
+        feedback_msg = MyCustomAction.Feedback()
+        result = MyCustomAction.Result()
+        goal_values = goal_handle.request.goal
+        self.get_logger().info(f"Manual Nav: 目標 {goal_values}")
+
+        # 等待模式設定為 Manual Nav
+        while self.current_mode != "Manual Nav":
+            await rclpy.sleep(0.1)
+
+        i = 1
+        while True:
+            # 檢查是否收到 "q"
+            if self.last_signal:
+                _, command = self.last_signal
+                if command == "q":
+                    self.get_logger().info("Manual Nav: 收到 'q'，取消導航任務")
+                    goal_handle.abort()
+                    result.success = False
+                    result.message = "Action aborted due to 'q' command"
+                    self.current_goal_handle = None
+                    self.current_mode = None
+                    self.last_signal = None
+                    return result
                 self.last_signal = None
-                return
-            else:
-                # 如果模式變更，則切換到新模式
-                if self.current_mode != mode_name:
-                    self.current_mode = mode_name
-                    self.get_logger().info(f"切換到模式: {self.current_mode}")
-            # 清除 last_signal，避免重複處理
-            self.last_signal = None
 
-        # 根據目前模式執行對應動作
-        if self.current_mode == "Manual Control":
-            self.manual_control_action()
-        elif self.current_mode == "Manual Nav":
-            self.manual_nav_action()
-        else:
-            self.get_logger().info("尚未收到有效模式指令或模式已停止")
-
-    def manual_control_action(self):
-        """
-        Manual Control 模式：使用鍵盤操控
-        此處僅為模板，你可以在這裡加入鍵盤讀取與控制邏輯
-        """
-        self.get_logger().info("Manual Control 運作中...（請實作鍵盤操控邏輯）")
-
-    def manual_nav_action(self):
-        """
-        Manual Nav 模式：訂閱其他 package 的 service 取得資料後作決定
-        此處僅為模板，你可以在這裡補上呼叫 service 的邏輯
-        """
-        self.get_logger().info("Manual Nav 運作中...（請實作呼叫 service 的邏輯）")
-        # 範例：
-        # self.call_nav_service()
-
-    def stop_mode(self):
-        """
-        當收到 'q' 指令時呼叫此方法停止目前模式，
-        可在此處加入額外的停止後處理邏輯（例如清除狀態、復位等）。
-        """
-        if self.current_mode:
-            self.get_logger().info(f"停止模式: {self.current_mode}")
-            self.current_mode = None
-        else:
-            self.get_logger().info("目前無模式執行中")
+            # 模擬導航回饋，例如距離逐步減少
+            feedback_msg.distance_to_goal = 50.0 - i * 2.0
+            goal_handle.publish_feedback(feedback_msg)
+            self.get_logger().info(
+                f"Manual Nav: 迴圈 {i}，回饋距離 {feedback_msg.distance_to_goal}"
+            )
+            i += 1
+            await rclpy.sleep(0.1)
 
 
 def main(args=None):
     rclpy.init(args=args)
-    mode_manager = ModeManager()
+    node = ManualNavNode()
     try:
-        rclpy.spin(mode_manager)
+        rclpy.spin(node)
     except KeyboardInterrupt:
-        mode_manager.get_logger().info("Keyboard Interrupt，節點關閉中...")
+        node.get_logger().info("Keyboard Interrupt，節點關閉中...")
     finally:
-        mode_manager.destroy_node()
+        node.destroy_node()
         rclpy.shutdown()
 
 
