@@ -4,8 +4,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32MultiArray
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
-
-# 請根據你的 package 名稱調整下面這行 import
+from custome_interfaces.srv import GetScan
 
 # LiDAR global constants
 LIDAR_RANGE = 90

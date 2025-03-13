@@ -1,9 +1,5 @@
-# GetScan.srv
-
-# Request
-bool processed  # True: 回傳處理過的資料；False: 回傳原始資料
+bool processed
 ---
-# Response
 bool success
 string message
 std_msgs/Float32MultiArray data

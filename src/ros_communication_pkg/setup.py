@@ -22,7 +22,7 @@ setup(
     entry_points={
         "console_scripts": [
             "ros_car_communication_node = ros_communication_pkg.car_data_collector:main",
-            "ros_car_action_server = ros_communication_pkg.car_service:main",
+            "ros_car_server = ros_communication_pkg.car_service:main",
         ],
     },
 )
