@@ -2,9 +2,10 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer, GoalResponse, CancelResponse
 from action_interface.action import NavGoal
-from std_msgs.msg import String
+from std_msgs.msg import String, Float32MultiArray
 from geometry_msgs.msg import Twist
 from car_control_pkg.utils import parse_control_signal
+from car_control_pkg.car_control_common import CarControlPublishers
 import math
 import time
 
@@ -20,6 +21,14 @@ class NavigationActionServer(Node):
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
         )
+        self.subscription = self.create_subscription(
+            String, "car_control_signal", self.key_callback, 10
+        )
+
+        # Get publishers from common module
+        self.rear_wheel_pub, self.front_wheel_pub = (
+            CarControlPublishers.create_publishers(self)
+        )
 
         # Publisher for movement commands
         self.cmd_vel_publisher = self.create_publisher(Twist, "cmd_vel", 10)
@@ -30,6 +39,17 @@ class NavigationActionServer(Node):
         self.current_theta = 0.0
 
         self.get_logger().info("Navigation Action Server is ready")
+
+    # Add method to utilize the common publish_control
+    def publish_control(self, action):
+        CarControlPublishers.publish_control(
+            self, action, self.rear_wheel_pub, self.front_wheel_pub
+        )
+
+    # Add key_callback method if needed
+    def key_callback(self, msg):
+        # Implementation as needed
+        pass
 
     def goal_callback(self, goal_request):
         """Accept or reject a client request to begin an action."""
