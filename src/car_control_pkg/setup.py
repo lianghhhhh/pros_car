@@ -20,6 +20,7 @@ setup(
     entry_points={
         "console_scripts": [
             "car_manual_node = car_control_pkg.car_manual:main",
+            "car_auto_nav_server_node = car_control_pkg.car_action_server:main",
         ],
     },
 )

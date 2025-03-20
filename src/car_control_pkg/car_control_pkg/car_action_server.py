@@ -1,104 +1,143 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer, GoalResponse, CancelResponse
-from custome_interfaces.action import MyCustomAction  # 自訂的 Action
+from action_interface.action import NavGoal
 from std_msgs.msg import String
+from geometry_msgs.msg import Twist
 from car_control_pkg.utils import parse_control_signal
 import math
+import time
 
 
-class ManualNavNode(Node):
+class NavigationActionServer(Node):
     def __init__(self):
-        super().__init__("manual_nav_node")
-        # 訂閱 car_control_signal，格式如 "Manual Nav:<command>"
-        self.subscription = self.create_subscription(
-            String, "car_control_signal", self.key_callback, 10
-        )
-        # 建立 Action Server 用於 Manual Nav 任務
-        self.action_server = ActionServer(
+        super().__init__("navigation_action_server_node")
+        self._action_server = ActionServer(
             self,
-            MyCustomAction,
-            "manual_nav_action",
-            self.goal_callback,
-            self.cancel_callback,
+            NavGoal,
+            "my_action",
             self.execute_callback,
+            goal_callback=self.goal_callback,
+            cancel_callback=self.cancel_callback,
         )
-        self.current_goal_handle = None
-        self.current_mode = None  # 當前應該為 "Manual Nav"
-        self.last_signal = None
 
-    def key_callback(self, msg: String):
-        mode, key = parse_control_signal(msg.data)
-        if len(parts) >= 2 and parts[0] == "Manual Nav":
-            self.last_signal = (mode, command)
-            # 設定模式
-            if self.current_mode is None:
-                self.current_mode = mode
-                self.get_logger().info(f"Manual Nav 模式設定為: {self.current_mode}")
-            self.get_logger().info(f"Manual Nav 收到指令: {parts}")
-            # 如果收到 "q"，取消當前 Action
-            if command == "q" and self.current_goal_handle is not None:
-                self.get_logger().info("Manual Nav: 收到 'q' 指令，取消導航任務")
-                self.current_goal_handle.abort()
-        else:
-            # 若訊號不屬於 Manual Nav，則忽略
-            pass
+        # Publisher for movement commands
+        self.cmd_vel_publisher = self.create_publisher(Twist, "cmd_vel", 10)
+
+        # Current position (in real system would come from odometry)
+        self.current_x = 0.0
+        self.current_y = 0.0
+        self.current_theta = 0.0
+
+        self.get_logger().info("Navigation Action Server is ready")
 
     def goal_callback(self, goal_request):
-        self.get_logger().info("Manual Nav: 收到新的 Action 目標，接受目標")
+        """Accept or reject a client request to begin an action."""
+        # Check if goal format is valid (expecting at least [x, y])
+        if len(goal_request.goal) < 2:
+            self.get_logger().error("Invalid goal format - need at least [x, y]")
+            return GoalResponse.REJECT
+
+        self.get_logger().info(f"Received goal: {goal_request.goal}")
         return GoalResponse.ACCEPT
 
     def cancel_callback(self, goal_handle):
-        self.get_logger().info("Manual Nav: 收到取消請求")
+        """Accept or reject a client request to cancel an action."""
+        self.get_logger().info("Received cancel request")
         return CancelResponse.ACCEPT
 
-    async def execute_callback(self, goal_handle):
-        self.get_logger().info("Manual Nav: 開始執行 Action")
-        self.current_goal_handle = goal_handle
-        feedback_msg = MyCustomAction.Feedback()
-        result = MyCustomAction.Result()
-        goal_values = goal_handle.request.goal
-        self.get_logger().info(f"Manual Nav: 目標 {goal_values}")
+    def execute_callback(self, goal_handle):
+        """Execute the goal."""
+        self.get_logger().info("Executing navigation goal...")
 
-        # 等待模式設定為 Manual Nav
-        while self.current_mode != "Manual Nav":
-            await rclpy.sleep(0.1)
+        # Extract goal coordinates from goal array
+        goal_array = goal_handle.request.goal
+        target_x = goal_array[0]
+        target_y = goal_array[1]
+        target_theta = goal_array[2] if len(goal_array) > 2 else None
 
-        i = 1
-        while True:
-            # 檢查是否收到 "q"
-            if self.last_signal:
-                _, command = self.last_signal
-                if command == "q":
-                    self.get_logger().info("Manual Nav: 收到 'q'，取消導航任務")
-                    goal_handle.abort()
-                    result.success = False
-                    result.message = "Action aborted due to 'q' command"
-                    self.current_goal_handle = None
-                    self.current_mode = None
-                    self.last_signal = None
-                    return result
-                self.last_signal = None
+        self.get_logger().info(f"Navigating to: ({target_x}, {target_y})")
 
-            # 模擬導航回饋，例如距離逐步減少
-            feedback_msg.distance_to_goal = 50.0 - i * 2.0
-            goal_handle.publish_feedback(feedback_msg)
-            self.get_logger().info(
-                f"Manual Nav: 迴圈 {i}，回饋距離 {feedback_msg.distance_to_goal}"
+        # Create feedback and result messages
+        feedback = NavGoal.Feedback()
+        result = NavGoal.Result()
+
+        # Navigation loop
+        rate = self.create_rate(10)  # 10Hz
+
+        while rclpy.ok():
+            # Calculate distance to goal
+            distance_to_goal = math.sqrt(
+                (target_x - self.current_x) ** 2 + (target_y - self.current_y) ** 2
             )
-            i += 1
-            await rclpy.sleep(0.1)
+
+            # Check if goal is reached
+            if distance_to_goal < 0.1:  # Within 10cm
+                self.get_logger().info("Goal reached!")
+                break
+
+            # Check if goal is cancelled
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                self.get_logger().info("Goal canceled")
+                result.success = False
+                result.message = "Navigation canceled"
+                return result
+
+            # Simple motion control toward goal
+            cmd = Twist()
+
+            # Determine direction to goal
+            dx = target_x - self.current_x
+            dy = target_y - self.current_y
+
+            # Calculate desired heading
+            desired_theta = math.atan2(dy, dx)
+
+            # Proportional control for rotation
+            cmd.angular.z = 0.5 * (desired_theta - self.current_theta)
+
+            # Forward velocity (limited for safety)
+            cmd.linear.x = min(0.2, 0.5 * distance_to_goal)
+
+            # Publish command
+            self.cmd_vel_publisher.publish(cmd)
+
+            # Update position (simulated here - would be from sensors in real system)
+            self.current_x += cmd.linear.x * math.cos(self.current_theta) * 0.1
+            self.current_y += cmd.linear.x * math.sin(self.current_theta) * 0.1
+            self.current_theta += cmd.angular.z * 0.1
+
+            # Normalize theta
+            self.current_theta = math.atan2(
+                math.sin(self.current_theta), math.cos(self.current_theta)
+            )
+
+            # Publish feedback
+            feedback.distance_to_goal = float(distance_to_goal)
+            goal_handle.publish_feedback(feedback)
+
+            self.get_logger().debug(f"Distance to goal: {distance_to_goal:.2f}")
+
+            # Sleep to maintain rate
+            rate.sleep()
+
+        # Set final result
+        result.success = True
+        result.message = "Goal reached successfully"
+        goal_handle.succeed()
+
+        return result
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ManualNavNode()
+    action_server = NavigationActionServer()
     try:
-        rclpy.spin(node)
+        rclpy.spin(action_server)
     except KeyboardInterrupt:
-        node.get_logger().info("Keyboard Interrupt，節點關閉中...")
+        pass
     finally:
-        node.destroy_node()
         rclpy.shutdown()
 
 
