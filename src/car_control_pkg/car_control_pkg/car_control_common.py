@@ -25,12 +25,27 @@ class CarControlPublishers:
         return node.create_subscription(String, "car_control_signal", callback, 10)
 
     @staticmethod
-    def publish_control(node, action, rear_wheel_pub, front_wheel_pub):
-        """Publish control commands to wheel publishers"""
+    def publish_control(node, action, rear_wheel_pub, front_wheel_pub=None):
+        """
+        Publish control commands to wheel publishers.
+        If only rear_wheel_pub is provided, all data is sent to it.
+        """
         vel = get_action_mapping(action)
-        rear_msg = Float32MultiArray()
-        front_msg = Float32MultiArray()
-        front_msg.data = vel[0:2]
-        rear_msg.data = vel[2:4]
-        rear_wheel_pub.publish(rear_msg)
-        front_wheel_pub.publish(front_msg)
+
+        if front_wheel_pub is None:
+            # Only rear wheel publisher is available
+            rear_msg = Float32MultiArray()
+            rear_msg.data = vel  # Use entire velocity array [0:4]
+            rear_wheel_pub.publish(rear_msg)
+            node.get_logger().debug(f"Publishing all control data to rear wheel: {vel}")
+        else:
+            # Both publishers are available
+            rear_msg = Float32MultiArray()
+            front_msg = Float32MultiArray()
+            front_msg.data = vel[0:2]
+            rear_msg.data = vel[2:4]
+            rear_wheel_pub.publish(rear_msg)
+            front_wheel_pub.publish(front_msg)
+            node.get_logger().debug(
+                f"Publishing split control data: front={vel[0:2]}, rear={vel[2:4]}"
+            )
