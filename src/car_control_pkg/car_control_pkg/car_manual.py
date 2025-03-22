@@ -1,44 +1,19 @@
 import rclpy
-from rclpy.node import Node
-from std_msgs.msg import String, Float32MultiArray
-from car_control_pkg.utils import parse_control_signal, get_action_mapping
-from car_control_pkg.car_control_common import (
-    CarControlPublishers,
-)  # Import the common class
+from car_control_pkg.car_control_common import BaseCarControlNode
 
 
-class ManualControlNode(Node):
+class ManualControlNode(BaseCarControlNode):
     def __init__(self):
+        # Initialize the base class with the node name
         super().__init__("manual_control_node")
 
-        # Get publishers from common module
-        self.rear_wheel_pub, self.front_wheel_pub = (
-            CarControlPublishers.create_publishers(self)
-        )
-
-        # Create subscription using common method
-        self.subscription = CarControlPublishers.create_control_subscription(
-            self, self.key_callback
-        )
-
-    def key_callback(self, msg: String):
-        # 使用 parse_control_signal 將字串解析成 mode 和 command
-        mode, command = parse_control_signal(msg.data)
-        if mode is None or command is None:
-            return
-
-        # 只處理 "Manual Control" 模式的指令
+    def handle_command(self, mode, command):
+        # Only handle Manual Control mode commands
         if mode == "Manual Control":
             self.key_control(command)
 
-    def publish_control(self, action):
-        # Use common method for publishing
-        CarControlPublishers.publish_control(
-            self, action, self.rear_wheel_pub, self.front_wheel_pub
-        )
-
     def key_control(self, key):
-        # Keep your existing key mapping logic
+        # Implement key mapping logic
         if key == "w":
             self.publish_control("FORWARD")
         elif key == "s":
