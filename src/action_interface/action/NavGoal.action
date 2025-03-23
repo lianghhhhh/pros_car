@@ -1,5 +1,6 @@
 # Goal
 float32[] goal
+string mode
 ---
 # Result
 bool success

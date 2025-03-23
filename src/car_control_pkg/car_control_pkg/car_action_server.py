@@ -1,18 +1,16 @@
 import rclpy
-from rclpy.node import Node
 from rclpy.action import ActionServer, GoalResponse, CancelResponse
 from action_interface.action import NavGoal
-from std_msgs.msg import String, Float32MultiArray
-from geometry_msgs.msg import Twist
-from car_control_pkg.utils import parse_control_signal
-from car_control_pkg.car_control_common import CarControlPublishers
+from car_control_pkg.car_control_common import BaseCarControlNode
+from car_control_pkg.nav_processing import Nav2Processing
 import math
-import time
 
 
-class NavigationActionServer(Node):
+class NavigationActionServer(BaseCarControlNode):
     def __init__(self):
-        super().__init__("navigation_action_server_node")
+        # Initialize base class with navigation subscribers enabled
+        super().__init__("navigation_action_server_node", enable_nav_subscribers=True)
+        # Create action server
         self._action_server = ActionServer(
             self,
             NavGoal,
@@ -21,38 +19,99 @@ class NavigationActionServer(Node):
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
         )
-        self.subscription = self.create_subscription(
-            String, "car_control_signal", self.key_callback, 10
-        )
 
-        # Get publishers from common module
-        self.rear_wheel_pub, self.front_wheel_pub = (
-            CarControlPublishers.create_publishers(self)
-        )
-
-    def publish_control(self, action):
-        # Use common method for publishing
-        CarControlPublishers.publish_control(
-            self, action, self.rear_wheel_pub, self.front_wheel_pub
-        )
-
-    # Add key_callback method if needed
-    def key_callback(self, msg):
-        pass
+        self.get_logger().info("Navigation Action Server initialized")
 
     def goal_callback(self, goal_request):
-        pass
+        """
+        Accept or reject a client request to begin an action.
+        Now also validates that a valid navigation mode is provided.
+        """
+        self.get_logger().info(
+            f"Received goal: {goal_request.goal} with mode: {goal_request.mode}"
+        )
+
+        # Validate goal format
+        if len(goal_request.goal) < 2:
+            self.get_logger().error("Invalid goal format - needs at least [x, y]")
+            return GoalResponse.REJECT
+
+        # Validate mode (allowed modes: "Auto Nav", "Custom Mode", "Manual Nav")
+        allowed_modes = ["Auto Nav", "Custom Mode", "Manual Nav"]
+        if goal_request.mode not in allowed_modes:
+            self.get_logger().error(
+                f"Invalid mode: {goal_request.mode}. Allowed modes: {allowed_modes}"
+            )
+            return GoalResponse.REJECT
+
+        return GoalResponse.ACCEPT
 
     def cancel_callback(self, goal_handle):
-        """Accept or reject a client request to cancel an action."""
+        """Accept a client request to cancel an action."""
         self.get_logger().info("Received cancel request")
         return CancelResponse.ACCEPT
 
     def execute_callback(self, goal_handle):
-        pass
+        """Execute the navigation action."""
+        self.get_logger().info("Executing navigation goal...")
 
+        # Extract goal data and mode from the goal request
+        goal_array = goal_handle.request.goal
+        mode = goal_handle.request.mode
+        goal_coordinates = (goal_array[0], goal_array[1])
+        self.get_logger().info(
+            f"Mode: {mode}, Navigating to coordinates: {goal_coordinates}"
+        )
+
+        # Create result and feedback messages
+        feedback = NavGoal.Feedback()
+        result = NavGoal.Result()
+
+        # Set control loop rate (10 Hz)
+        rate = self.create_rate(10)
+
+        # Main navigation loop
         while rclpy.ok():
-            pass
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info("Goal canceled")
+                self.publish_control("STOP")
+                goal_handle.canceled()
+                result.success = False
+                result.message = "Navigation canceled"
+                return result
+
+            # Get current position and orientation using the base class helper method
+            car_position, car_orientation = self.get_car_position_and_orientation()
+
+            if not car_position:
+                self.get_logger().warn("No position data available")
+                rate.sleep()
+                continue
+
+            # Calculate Euclidean distance to the goal
+            distance = math.sqrt(
+                (car_position[0] - goal_coordinates[0]) ** 2
+                + (car_position[1] - goal_coordinates[1]) ** 2
+            )
+
+            # Check if the goal is reached (within 20cm of the goal)
+            if distance < 0.2:
+                self.get_logger().info("Goal reached!")
+                self.publish_control("STOP")
+                break
+
+            # Update and publish feedback
+            feedback.distance_to_goal = float(distance)
+            goal_handle.publish_feedback(feedback)
+
+            rate.sleep()
+
+        # Navigation completed successfully
+        result.success = True
+        result.message = "Navigation completed successfully"
+        goal_handle.succeed()
+
+        return result
 
 
 def main(args=None):
@@ -61,8 +120,9 @@ def main(args=None):
     try:
         rclpy.spin(action_server)
     except KeyboardInterrupt:
-        pass
+        action_server.get_logger().info("Keyboard interrupt, shutting down...")
     finally:
+        action_server.destroy_node()
         rclpy.shutdown()
 
 
