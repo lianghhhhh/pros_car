@@ -16,10 +16,10 @@ class MenuApp:
         # === 定義選單結構 ===
         self.menu_items = {
             "Control Vehicle": {
-                "Manual Control": None,
-                "Manual Nav": None,
-                "Auto Nav": None,
-                "Customize Nav": None,
+                "Manual_Control": None,
+                "Manual_Nav": None,
+                "Auto_Nav": None,
+                "Customize_Nav": None,
             },
             "Manual Arm Control": {
                 "0": None,

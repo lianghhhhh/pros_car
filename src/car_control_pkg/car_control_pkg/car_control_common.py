@@ -71,7 +71,10 @@ class BaseCarControlNode(Node):
 
         # Navigation data storage
         self.latest_amcl_pose = None
+        self.latest_goal_pose = None
         self.latest_global_plan = None
+        self.stored_global_plan = None  # For storing a fixed plan
+        self.plan_lock_active = False  # Flag to control plan updates
         self.latest_camera_depth = None
         self.latest_yolo_info = None
 
@@ -83,6 +86,10 @@ class BaseCarControlNode(Node):
         """Create all subscribers needed for navigation"""
         self.amcl_sub = self.create_subscription(
             PoseWithCovarianceStamped, "/amcl_pose", self._amcl_callback, 10
+        )
+
+        self.goal_pose_sub = self.create_subscription(
+            PoseStamped, "/goal_pose", self._goal_pose_callback, 10
         )
 
         self.plan_sub = self.create_subscription(
@@ -107,9 +114,17 @@ class BaseCarControlNode(Node):
         """Store latest AMCL pose"""
         self.latest_amcl_pose = msg
 
+    def _goal_pose_callback(self, msg):
+        """Store latest AMCL pose"""
+        self.latest_goal_pose = msg
+
     def _global_plan_callback(self, msg):
         """Store latest global plan"""
         self.latest_global_plan = msg
+
+        # If we haven't stored an initial plan yet, store this one
+        if self.stored_global_plan is None:
+            self.store_current_plan()
 
     def _camera_depth_callback(self, msg):
         """Store latest camera depth data"""
@@ -138,19 +153,53 @@ class BaseCarControlNode(Node):
             )
         return None, None
 
-    def get_path_points(self):
+    def get_path_points(self, dynamic=True):
         """
         Get path points from global plan
+
+        Args:
+            dynamic: If True, always use the latest plan from Nav2
+                   If False, use the stored plan (won't update with new Nav2 plans)
 
         Returns:
             List of (x, y) tuples or empty list if unavailable
         """
         path_points = []
-        if self.latest_global_plan and self.latest_global_plan.poses:
-            for pose in self.latest_global_plan.poses:
+
+        # Determine which plan to use
+        plan_to_use = self.latest_global_plan if dynamic else self.stored_global_plan
+
+        # If we want a static plan but don't have one, fall back to latest
+        if not dynamic and not self.stored_global_plan:
+            plan_to_use = self.latest_global_plan
+            self.get_logger().warn("No stored plan available, using latest plan")
+
+        # Extract points from the selected plan
+        if plan_to_use and plan_to_use.poses:
+            for pose in plan_to_use.poses:
                 pos = pose.pose.position
-                path_points.append((pos.x, pos.y))
+                path_points.append(list(pos.x, pos.y))
+
         return path_points
+
+    def store_current_plan(self):
+        """Store the current global plan as the fixed plan"""
+        if self.latest_global_plan:
+            import copy
+
+            self.stored_global_plan = copy.deepcopy(self.latest_global_plan)
+            self.plan_lock_active = True
+            self.get_logger().info("Global plan stored (locked)")
+            return True
+        else:
+            self.get_logger().warn("No global plan available to store")
+            return False
+
+    def clear_stored_plan(self):
+        """Clear the stored plan and revert to dynamic updates"""
+        self.stored_global_plan = None
+        self.plan_lock_active = False
+        self.get_logger().info("Stored plan cleared (using dynamic updates)")
 
     # Common methods for all car control nodes
     def key_callback(self, msg):

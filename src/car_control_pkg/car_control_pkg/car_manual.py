@@ -9,7 +9,7 @@ class ManualControlNode(BaseCarControlNode):
 
     def handle_command(self, mode, command):
         # Only handle Manual Control mode commands
-        if mode == "Manual Control":
+        if mode == "Manual_Control":
             self.key_control(command)
 
     def key_control(self, key):

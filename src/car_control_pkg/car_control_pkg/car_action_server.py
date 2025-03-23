@@ -27,17 +27,10 @@ class NavigationActionServer(BaseCarControlNode):
         Accept or reject a client request to begin an action.
         Now also validates that a valid navigation mode is provided.
         """
-        self.get_logger().info(
-            f"Received goal: {goal_request.goal} with mode: {goal_request.mode}"
-        )
-
-        # Validate goal format
-        if len(goal_request.goal) < 2:
-            self.get_logger().error("Invalid goal format - needs at least [x, y]")
-            return GoalResponse.REJECT
+        self.get_logger().info(f"mode: {goal_request.mode}")
 
         # Validate mode (allowed modes: "Auto Nav", "Custom Mode", "Manual Nav")
-        allowed_modes = ["Auto Nav", "Custom Mode", "Manual Nav"]
+        allowed_modes = ["Auto_Nav", "Custom_Mode", "Manual_Nav"]
         if goal_request.mode not in allowed_modes:
             self.get_logger().error(
                 f"Invalid mode: {goal_request.mode}. Allowed modes: {allowed_modes}"
@@ -56,12 +49,7 @@ class NavigationActionServer(BaseCarControlNode):
         self.get_logger().info("Executing navigation goal...")
 
         # Extract goal data and mode from the goal request
-        goal_array = goal_handle.request.goal
         mode = goal_handle.request.mode
-        goal_coordinates = (goal_array[0], goal_array[1])
-        self.get_logger().info(
-            f"Mode: {mode}, Navigating to coordinates: {goal_coordinates}"
-        )
 
         # Create result and feedback messages
         feedback = NavGoal.Feedback()
@@ -89,10 +77,7 @@ class NavigationActionServer(BaseCarControlNode):
                 continue
 
             # Calculate Euclidean distance to the goal
-            distance = math.sqrt(
-                (car_position[0] - goal_coordinates[0]) ** 2
-                + (car_position[1] - goal_coordinates[1]) ** 2
-            )
+            distance = 0.3
 
             # Check if the goal is reached (within 20cm of the goal)
             if distance < 0.2:
