@@ -145,12 +145,12 @@ class BaseCarControlNode(Node):
         if self.latest_amcl_pose:
             pos = self.latest_amcl_pose.pose.pose.position
             orientation = self.latest_amcl_pose.pose.pose.orientation
-            return list(pos.x, pos.y, pos.z), list(
+            return [pos.x, pos.y, pos.z], [
                 orientation.x,
                 orientation.y,
                 orientation.z,
                 orientation.w,
-            )
+            ]
         return None, None
 
     def get_path_points(self, dynamic=True):

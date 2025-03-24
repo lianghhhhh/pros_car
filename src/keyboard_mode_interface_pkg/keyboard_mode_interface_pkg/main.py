@@ -3,6 +3,7 @@ import rclpy
 from keyboard_mode_interface_pkg.ros_pub_sub import ROS2Manager
 from keyboard_mode_interface_pkg.mode_manager import ModeManager
 import os
+import threading
 
 
 class MenuApp:
@@ -176,12 +177,19 @@ def main():
     rclpy.init()
     ros_manager = ROS2Manager()
     mode_manager = ModeManager(ros_manager)
+
+    # Create and start ROS spin thread
+    ros_spin_thread = threading.Thread(target=lambda: rclpy.spin(ros_manager))
+    ros_spin_thread.daemon = True
+    ros_spin_thread.start()
+
+    # Run UI in main thread
     app = MenuApp(ros_manager, mode_manager)
     try:
         app.run()
     finally:
-        ros_manager.destroy_node()
         rclpy.shutdown()
+        ros_manager.destroy_node()
 
 
 if __name__ == "__main__":

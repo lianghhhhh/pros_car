@@ -1,33 +1,16 @@
 import rclpy
-from rclpy.node import Node
-from std_msgs.msg import String
 from rclpy.action import ActionClient
-from action_msgs.msg import GoalStatus
+from rclpy.node import Node
 from action_interface.action import NavGoal
 
 
-class ROS2Manager(Node):
+class FibonacciActionClient(Node):
+
     def __init__(self):
-        super().__init__("ros2_manager")
-
-        # Publisher（發送指令給其他節點）
-        self.car_control_publisher = self.create_publisher(
-            String, "car_control_signal", 10
-        )
-
-        self.test_publisher = self.create_publisher(String, "test", 10)
-
-        # Subscriber（接收來自其他節點的訊息）
-        self.subscription = self.create_subscription(
-            String, "menu_feedback", self.listener_callback, 10
-        )
-
-        # Create action client
+        super().__init__("fibonacci_action_client")
         self.nav_client = ActionClient(self, NavGoal, "nav_action_server")
-        self.current_goal_handle = None
 
-    def send_navigation_goal(self, mode):
-        """發送導航目標"""
+    def send_goal(self, mode):
         goal_msg = NavGoal.Goal()
         goal_msg.mode = mode
         self.nav_client.wait_for_server()
@@ -59,12 +42,16 @@ class ROS2Manager(Node):
             "Received feedback: {0}".format(feedback.distance_to_goal)
         )
 
-    def publish_car_signal(self, command):
-        """發布選單的指令"""
-        msg = String()
-        msg.data = command
-        self.car_control_publisher.publish(msg)
 
-    def listener_callback(self, msg):
-        """監聽來自其他節點的回應"""
-        self.get_logger().info(f"收到回應: {msg.data}")
+def main(args=None):
+    rclpy.init(args=args)
+
+    action_client = FibonacciActionClient()
+
+    action_client.send_goal(mode="test")
+
+    rclpy.spin(action_client)
+
+
+if __name__ == "__main__":
+    main()
