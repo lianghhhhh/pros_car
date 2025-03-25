@@ -22,6 +22,7 @@ setup(
             "car_manual_node = car_control_pkg.car_manual:main",
             "car_auto_nav_server_node = car_control_pkg.car_action_server:main",
             "car_auto_nav_client_node = car_control_pkg.car_test_client:main",
+            "car_control_node = car_control_pkg.main:main",
         ],
     },
 )
