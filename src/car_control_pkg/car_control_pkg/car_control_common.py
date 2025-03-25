@@ -4,6 +4,7 @@ from std_msgs.msg import Float32MultiArray, String
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
 from nav_msgs.msg import Path
 from car_control_pkg.utils import get_action_mapping, parse_control_signal
+import copy
 
 
 class CarControlPublishers:
@@ -153,16 +154,19 @@ class BaseCarControlNode(Node):
             ]
         return None, None
 
-    def get_path_points(self, dynamic=True):
+    def get_path_points(self, dynamic=True, include_orientation=True):
         """
         Get path points from global plan
 
         Args:
             dynamic: If True, always use the latest plan from Nav2
                    If False, use the stored plan (won't update with new Nav2 plans)
+            include_orientation: If True, return position and orientation data
+                                If False, return only position data
 
         Returns:
-            List of (x, y) tuples or empty list if unavailable
+            If include_orientation=True: List of dicts with 'position' and 'orientation' keys
+            If include_orientation=False: List of [x, y] position arrays
         """
         path_points = []
 
@@ -178,14 +182,25 @@ class BaseCarControlNode(Node):
         if plan_to_use and plan_to_use.poses:
             for pose in plan_to_use.poses:
                 pos = pose.pose.position
-                path_points.append(list(pos.x, pos.y))
+
+                if include_orientation:
+                    # Return both position and orientation data
+                    orient = pose.pose.orientation
+                    path_points.append(
+                        {
+                            "position": [pos.x, pos.y, pos.z],
+                            "orientation": [orient.x, orient.y, orient.z, orient.w],
+                        }
+                    )
+                else:
+                    # Legacy mode - just return position as before
+                    path_points.append([pos.x, pos.y])
 
         return path_points
 
     def store_current_plan(self):
         """Store the current global plan as the fixed plan"""
         if self.latest_global_plan:
-            import copy
 
             self.stored_global_plan = copy.deepcopy(self.latest_global_plan)
             self.plan_lock_active = True

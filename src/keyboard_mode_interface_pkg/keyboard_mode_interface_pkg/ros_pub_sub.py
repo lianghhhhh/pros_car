@@ -4,6 +4,10 @@ from std_msgs.msg import String
 from rclpy.action import ActionClient
 from action_msgs.msg import GoalStatus
 from action_interface.action import NavGoal
+from keyboard_mode_interface_pkg.action_server_handler import (
+    handle_action_result,
+)
+import traceback
 
 
 class ROS2Manager(Node):
@@ -24,7 +28,6 @@ class ROS2Manager(Node):
 
         # Create action client
         self.nav_client = ActionClient(self, NavGoal, "nav_action_server")
-        self.current_goal_handle = None
 
     def send_navigation_goal(self, mode):
         """發送導航目標"""
@@ -48,10 +51,28 @@ class ROS2Manager(Node):
         self._get_result_future.add_done_callback(self.get_result_callback)
 
     def get_result_callback(self, future):
-        result = future.result().result
-        self.get_logger().info(
-            "Result: success={0}, message='{1}'".format(result.success, result.message)
-        )
+        """Process the action result, including abort signals."""
+        try:
+            # Get the goal handle result
+            goal_result = future.result()
+
+            # Get the status code
+            status = goal_result.status
+
+            # Get the actual result data
+            result = goal_result.result
+
+            handle_action_result(
+                node=self,
+                status=status,
+                result=result,
+            )
+
+        except Exception as e:
+            # Robust exception handling
+
+            self.get_logger().error(f"Error in get_result_callback: {e}")
+            self.get_logger().error(traceback.format_exc())
 
     def feedback_callback(self, feedback_msg):
         feedback = feedback_msg.feedback
