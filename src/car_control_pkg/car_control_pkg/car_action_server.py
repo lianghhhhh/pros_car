@@ -15,7 +15,6 @@ from car_control_pkg.nav2_utils import (
     calculate_diff_angle,
 )
 import time
-import threading
 
 
 class NavigationActionServer(Node):
@@ -31,19 +30,17 @@ class NavigationActionServer(Node):
         self.car_control_node = car_control_node
         self.get_logger().info("Navigation Action Server initialized")
         self.index = 0
-        self._result = None
-        self._goal_handle = None
-        self._path_points = None
+        self.cancel_flag = 0
 
     def cancel_callback(self, goal_handle):
         self.get_logger().info("Enter the cancel callback")
+        # goal_handle.cancel()
+        self.car_control_node.publish_control("STOP")
+        self.cancel_flag = 1
         return CancelResponse.ACCEPT
 
     def execute_callback(self, goal_handle):
         """Navigation action callback"""
-        self.get_logger().info(
-            f"Executing navigation goal with ID: {goal_handle.goal_id}"
-        )
         self.index = 0  # Reset for new navigation
 
         # Create result message
@@ -70,85 +67,74 @@ class NavigationActionServer(Node):
             goal_handle.abort()
             return result
 
-        self.get_logger().info(f"Starting navigation with {len(path_points)} waypoints")
+        # self.get_logger().info(f"Starting navigation with {len(path_points)} waypoints")
 
         # Create rate controller
-        rate = self.create_rate(20)  # 20Hz for smooth navigation
-
+        rate = self.create_rate(10)
+        self.cancel_flag = 0
         # Main navigation loop
         while rclpy.ok():
-            # First, check for cancellation
-            if goal_handle.is_cancel_requested:
-                self.get_logger().info("Navigation goal canceled")
-                # Send STOP command multiple times to ensure it's received
-                for _ in range(3):
-                    self.car_control_node.publish_control("STOP")
-                    time.sleep(0.1)
-
-                result.success = False
-                result.message = "Navigation canceled"
-                goal_handle.canceled()
-                return result
-
-            # Get current position
-            car_position, car_orientation = (
-                self.car_control_node.get_car_position_and_orientation()
-            )
-            if not car_position:
-                self.get_logger().warn("Lost position data during navigation")
-                self.car_control_node.publish_control("STOP")
-                result.success = False
-                result.message = "Lost position data during navigation"
-                goal_handle.abort()
-                return result
-
-            # Extract position and orientation
-            car_position = car_position[0:3]
-            car_orientation = car_orientation[2:4]
-
-            # Calculate next target point
-            target_x, target_y = self.get_next_target_point(
-                car_position, path_points=path_points
-            )
-            final_pos = path_points[-1]["position"][0:2]
-            target_distance = cal_distance(car_position, final_pos)
-
-            # Check if goal reached
-            if target_x is None or target_distance < 0.5:
-                self.get_logger().info(
-                    f"Goal reached! Distance: {target_distance:.2f}m"
-                )
-                self.car_control_node.publish_control("STOP")
-                result.success = True
-                result.message = "Navigation completed successfully"
-                goal_handle.succeed()
-                return result
-
-            # Calculate angle difference to determine control action
-            diff_angle = calculate_diff_angle(
-                car_position, car_orientation, target_x, target_y
-            )
-
-            # Determine control action
-            if -20 < diff_angle < 20:
-                action_key = "FORWARD"
-            elif diff_angle < -20 and diff_angle > -180:
-                action_key = "CLOCKWISE_ROTATION"
-            elif diff_angle > 20 and diff_angle < 180:
-                action_key = "COUNTERCLOCKWISE_ROTATION"
-            else:
-                action_key = "STOP"
-
-            # Send control command
-            self.car_control_node.publish_control(action_key)
-
-            # Send feedback
-            feedback_msg = NavGoal.Feedback()
-            feedback_msg.distance_to_goal = float(target_distance)
-            goal_handle.publish_feedback(feedback_msg)
-
-            # Sleep to maintain loop rate
+            # First give executor time to process callbacks
             rate.sleep()
+
+            if self.cancel_flag == 0:
+                car_position, car_orientation = (
+                    self.car_control_node.get_car_position_and_orientation()
+                )
+                if not car_position:
+                    self.get_logger().warn("Lost position data during navigation")
+                    self.car_control_node.publish_control("STOP")
+                    result.success = False
+                    result.message = "Lost position data during navigation"
+                    goal_handle.abort()
+                    return result
+
+                # Extract position and orientation
+                car_position = car_position[0:3]
+                car_orientation = car_orientation[2:4]
+
+                # Calculate next target point
+                target_x, target_y = self.get_next_target_point(
+                    car_position, path_points=path_points
+                )
+                final_pos = path_points[-1]["position"][0:2]
+                target_distance = cal_distance(car_position, final_pos)
+
+                # Check if goal reached
+                if target_x is None or target_distance < 0.5:
+                    # self.get_logger().info(
+                    #     f"Goal reached! Distance: {target_distance:.2f}m"
+                    # )
+                    self.car_control_node.publish_control("STOP")
+                    result.success = True
+                    result.message = "Navigation completed successfully"
+                    goal_handle.succeed()
+                    return result
+
+                # Calculate angle difference to determine control action
+                diff_angle = calculate_diff_angle(
+                    car_position, car_orientation, target_x, target_y
+                )
+
+                # Determine control action
+                if -20 < diff_angle < 20:
+                    action_key = "FORWARD"
+                elif diff_angle < -20 and diff_angle > -180:
+                    action_key = "CLOCKWISE_ROTATION"
+                elif diff_angle > 20 and diff_angle < 180:
+                    action_key = "COUNTERCLOCKWISE_ROTATION"
+                else:
+                    action_key = "STOP"
+
+                # Send control command
+                self.car_control_node.publish_control(action_key)
+
+                # Send feedback
+                feedback_msg = NavGoal.Feedback()
+                feedback_msg.distance_to_goal = float(target_distance)
+                goal_handle.publish_feedback(feedback_msg)
+            else:
+                self.car_control_node.publish_control("STOP")
 
     def get_next_target_point(
         self, car_position, path_points, min_required_distance=0.5
