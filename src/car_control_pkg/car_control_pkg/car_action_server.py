@@ -31,8 +31,6 @@ class NavigationActionServer(Node):
         self.car_control_node = car_control_node
         self.get_logger().info("Navigation Action Server initialized")
         self.index = 0
-        self._navigation_timer = None
-        self._finished_event = threading.Event()
         self._result = None
         self._goal_handle = None
         self._path_points = None
@@ -42,13 +40,16 @@ class NavigationActionServer(Node):
         return CancelResponse.ACCEPT
 
     def execute_callback(self, goal_handle):
-        self.get_logger().info("Executing navigation goal...")
-        self._goal_handle = goal_handle
+        """Navigation action callback"""
+        self.get_logger().info(
+            f"Executing navigation goal with ID: {goal_handle.goal_id}"
+        )
+        self.index = 0  # Reset for new navigation
 
-        # 建立回傳結果的結構
+        # Create result message
         result = NavGoal.Result()
 
-        # 初始檢查：取得位置與路徑
+        # Initial checks: Get position and path
         car_position, car_orientation = (
             self.car_control_node.get_car_position_and_orientation()
         )
@@ -59,103 +60,95 @@ class NavigationActionServer(Node):
             goal_handle.abort()
             return result
 
-        self._path_points = self.car_control_node.get_path_points(
+        path_points = self.car_control_node.get_path_points(
             dynamic=True, include_orientation=True
         )
-        if not self._path_points:
+        if not path_points:
             self.get_logger().error("Navigation failed: No path points available")
             result.success = False
             result.message = "No path available for navigation"
             goal_handle.abort()
             return result
 
-        self.get_logger().info(
-            f"Starting navigation with {len(self._path_points)} waypoints"
-        )
+        self.get_logger().info(f"Starting navigation with {len(path_points)} waypoints")
 
-        # 清除完成旗標，並建立 Timer，每 0.1 秒執行一次 navigation_step
-        self._finished_event.clear()
-        self._navigation_timer = self.create_timer(0.1, self.navigation_step)
+        # Create rate controller
+        rate = self.create_rate(20)  # 20Hz for smooth navigation
 
-        # 等待 Timer 透過設定 _finished_event 通知導航結束
-        while not self._finished_event.is_set():
-            time.sleep(0.05)
+        # Main navigation loop
+        while rclpy.ok():
+            # First, check for cancellation
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info("Navigation goal canceled")
+                # Send STOP command multiple times to ensure it's received
+                for _ in range(3):
+                    self.car_control_node.publish_control("STOP")
+                    time.sleep(0.1)
 
-        # 回傳 Timer 執行完畢後設定的結果
-        return self._result
+                result.success = False
+                result.message = "Navigation canceled"
+                goal_handle.canceled()
+                return result
 
-    def navigation_step(self):
-        goal_handle = self._goal_handle
-        if goal_handle is None:
-            return
+            # Get current position
+            car_position, car_orientation = (
+                self.car_control_node.get_car_position_and_orientation()
+            )
+            if not car_position:
+                self.get_logger().warn("Lost position data during navigation")
+                self.car_control_node.publish_control("STOP")
+                result.success = False
+                result.message = "Lost position data during navigation"
+                goal_handle.abort()
+                return result
 
-        # 先檢查是否收到取消請求
-        if goal_handle.is_cancel_requested:
-            self.get_logger().info("Navigation goal canceled")
-            self.car_control_node.publish_control("STOP")
-            self._result = NavGoal.Result()
-            self._result.success = False
-            self._result.message = "Navigation canceled"
-            goal_handle.canceled()
-            self._navigation_timer.cancel()
-            self._finished_event.set()
-            return
+            # Extract position and orientation
+            car_position = car_position[0:3]
+            car_orientation = car_orientation[2:4]
 
-        # 取得目前位置資訊
-        car_position, car_orientation = (
-            self.car_control_node.get_car_position_and_orientation()
-        )
-        if not car_position:
-            self.get_logger().warn("Lost position data during navigation")
-            self.car_control_node.publish_control("STOP")
-            self._result = NavGoal.Result()
-            self._result.success = False
-            self._result.message = "Lost position data during navigation"
-            goal_handle.abort()
-            self._navigation_timer.cancel()
-            self._finished_event.set()
-            return
+            # Calculate next target point
+            target_x, target_y = self.get_next_target_point(
+                car_position, path_points=path_points
+            )
+            final_pos = path_points[-1]["position"][0:2]
+            target_distance = cal_distance(car_position, final_pos)
 
-        # 取前三個座標，並取部分方向資料
-        car_position = car_position[0:3]
-        car_orientation = car_orientation[2:4]
+            # Check if goal reached
+            if target_x is None or target_distance < 0.5:
+                self.get_logger().info(
+                    f"Goal reached! Distance: {target_distance:.2f}m"
+                )
+                self.car_control_node.publish_control("STOP")
+                result.success = True
+                result.message = "Navigation completed successfully"
+                goal_handle.succeed()
+                return result
 
-        # 計算下一個目標點
-        target_x, target_y = self.get_next_target_point(
-            car_position, path_points=self._path_points
-        )
-        final_pos = self._path_points[-1]["position"][0:2]
-        target_distance = cal_distance(car_position, final_pos)
-        if target_x is None or target_distance < 0.5:
-            self.get_logger().info(f"Goal reached! Distance: {target_distance:.2f}m")
-            self.car_control_node.publish_control("STOP")
-            self._result = NavGoal.Result()
-            self._result.success = True
-            self._result.message = "Navigation completed successfully"
-            goal_handle.succeed()
-            self._navigation_timer.cancel()
-            self._finished_event.set()
-            return
+            # Calculate angle difference to determine control action
+            diff_angle = calculate_diff_angle(
+                car_position, car_orientation, target_x, target_y
+            )
 
-        # 計算角度差，決定控制指令
-        diff_angle = calculate_diff_angle(
-            car_position, car_orientation, target_x, target_y
-        )
-        if -20 < diff_angle < 20:
-            action_key = "FORWARD"
-        elif diff_angle < -20 and diff_angle > -180:
-            action_key = "CLOCKWISE_ROTATION"
-        elif diff_angle > 20 and diff_angle < 180:
-            action_key = "COUNTERCLOCKWISE_ROTATION"
-        else:
-            action_key = "STOP"
+            # Determine control action
+            if -20 < diff_angle < 20:
+                action_key = "FORWARD"
+            elif diff_angle < -20 and diff_angle > -180:
+                action_key = "CLOCKWISE_ROTATION"
+            elif diff_angle > 20 and diff_angle < 180:
+                action_key = "COUNTERCLOCKWISE_ROTATION"
+            else:
+                action_key = "STOP"
 
-        self.car_control_node.publish_control(action_key)
+            # Send control command
+            self.car_control_node.publish_control(action_key)
 
-        # 發送回饋訊息
-        feedback_msg = NavGoal.Feedback()
-        feedback_msg.distance_to_goal = float(target_distance)
-        goal_handle.publish_feedback(feedback_msg)
+            # Send feedback
+            feedback_msg = NavGoal.Feedback()
+            feedback_msg.distance_to_goal = float(target_distance)
+            goal_handle.publish_feedback(feedback_msg)
+
+            # Sleep to maintain loop rate
+            rate.sleep()
 
     def get_next_target_point(
         self, car_position, path_points, min_required_distance=0.5
