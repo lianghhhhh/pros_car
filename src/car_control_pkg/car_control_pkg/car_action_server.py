@@ -28,9 +28,14 @@ class NavigationActionServer(BaseCarControlNode):
             NavGoal,
             "nav_action_server",
             execute_callback=self.execute_callback,
+            cancel_callback=self.cancel_callback,
         )
         self.get_logger().info("Navigation Action Server initialized")
         self.index = 0
+
+    def cancel_callback(self, goal_handle):
+        self.get_logger().info("Received request to cancel goal!")
+        return CancelResponse.ACCEPT
 
     async def execute_callback(self, goal_handle):
         """Async navigation action callback"""
@@ -73,17 +78,21 @@ class NavigationActionServer(BaseCarControlNode):
         # Navigation parameters
         waypoint_threshold = 0.5  # Distance in meters to consider waypoint reached
         current_waypoint_index = 0
+        rate = self.create_rate(10)
         action_key = None
         # Main navigation loop
         while rclpy.ok():
             # Check if goal was canceled
+            print(goal_handle.is_cancel_requested)
             if goal_handle.is_cancel_requested:
                 self.get_logger().info("Navigation goal canceled")
                 self.publish_control("STOP")
                 result.success = False
                 result.message = "Navigation canceled"
                 goal_handle.canceled()
-                return result
+                break
+            rate.sleep()
+            # await asyncio.sleep(0.1)
 
             # Get current car position
             car_position, car_orientation = self.get_car_position_and_orientation()
@@ -103,7 +112,10 @@ class NavigationActionServer(BaseCarControlNode):
             final_pos = path_points[-1]["position"][0:2]
             target_distance = cal_distance(car_position, final_pos)
             if target_x is None or target_distance < 0.5:
-                action_key = "STOP"
+                self.get_logger().info(
+                    f"Goal reached! Distance: {target_distance:.2f}m"
+                )
+                break  # EXIT THE LOOP HERE
             diff_angle = calculate_diff_angle(
                 car_position, car_orientation, target_x, target_y
             )

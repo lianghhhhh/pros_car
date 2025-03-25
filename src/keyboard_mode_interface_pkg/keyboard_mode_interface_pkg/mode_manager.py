@@ -8,7 +8,13 @@ class ModeManager:
         if "Control Vehicle" in pressed_key_info:
             car_control_signal = f"{title}:{subtitle}"
             if title == "Manual_Nav":
-                self.ros_manager.send_navigation_goal(mode="Manual_Nav")
+                if subtitle == "q":
+                    print("q")
+
+                    self.ros_manager.cancel_navigation_goal()
+                    input("Press Enter to continue...")
+                else:
+                    self.ros_manager.send_navigation_goal(mode="Manual_Nav")
             else:
                 self.ros_manager.publish_car_signal(car_control_signal)
 
