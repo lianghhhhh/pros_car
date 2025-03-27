@@ -25,6 +25,7 @@ class NavigationActionServer(Node):
             NavGoal,
             "nav_action_server",
             execute_callback=self.execute_callback,
+            goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
         )
         self.car_control_node = car_control_node
@@ -32,9 +33,21 @@ class NavigationActionServer(Node):
         self.index = 0
         self.cancel_flag = 0
 
+    def goal_callback(self, goal_request):
+        self.get_logger().info("Received goal request")
+        requested_mode = goal_request.mode
+        if requested_mode == "Manual_Nav":
+            car_position, _ = self.car_control_node.get_car_position_and_orientation()
+            path_points = self.car_control_node.get_path_points(
+                dynamic=True, include_orientation=True
+            )
+            if not car_position or not path_points:
+                self.get_logger().error("Cannot start navigation: Missing data")
+                return GoalResponse.REJECT
+        return GoalResponse.ACCEPT
+
     def cancel_callback(self, goal_handle):
         self.get_logger().info("Enter the cancel callback")
-        # goal_handle.cancel()
         self.car_control_node.publish_control("STOP")
         self.cancel_flag = 1
         return CancelResponse.ACCEPT
