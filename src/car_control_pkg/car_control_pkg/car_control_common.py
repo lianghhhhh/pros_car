@@ -1,10 +1,11 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32MultiArray, String
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Twist
 from nav_msgs.msg import Path
 from car_control_pkg.utils import get_action_mapping, parse_control_signal
 import copy
+from car_control_pkg.nav2_utils import cal_distance
 
 
 class CarControlPublishers:
@@ -30,10 +31,15 @@ class CarControlPublishers:
     @staticmethod
     def publish_control(node, action, rear_wheel_pub, front_wheel_pub=None):
         """
-        Publish control commands to wheel publishers.
-        If only rear_wheel_pub is provided, all data is sent to it.
+        If the action is a string, it will be converted to a velocity array using the action mapping.
+        If the action is a list, it will be used as the velocity array directly.
         """
-        vel = get_action_mapping(action)
+        if not isinstance(action, str):
+            vel = [action[0],action[1],action[0],action[1]]
+
+        else:
+            vel = get_action_mapping(action)
+
 
         if front_wheel_pub is None:
             # Only rear wheel publisher is available
@@ -74,10 +80,9 @@ class BaseCarControlNode(Node):
         self.latest_amcl_pose = None
         self.latest_goal_pose = None
         self.latest_global_plan = None
-        self.stored_global_plan = None  # For storing a fixed plan
-        self.plan_lock_active = False  # Flag to control plan updates
         self.latest_camera_depth = None
         self.latest_yolo_info = None
+        self.latest_cmd_vel = None
 
         # Create navigation data subscribers if enabled
         if enable_nav_subscribers:
@@ -95,6 +100,13 @@ class BaseCarControlNode(Node):
 
         self.plan_sub = self.create_subscription(
             Path, "/received_global_plan", self._global_plan_callback, 1
+        )
+
+        self.cmd_vel_sub = self.create_subscription(
+            Twist,
+            '/cmd_vel',
+            self.cmd_vel_callback,
+            10
         )
 
         self.camera_depth_sub = self.create_subscription(
@@ -123,10 +135,6 @@ class BaseCarControlNode(Node):
         """Store latest global plan"""
         self.latest_global_plan = msg
 
-        # If we haven't stored an initial plan yet, store this one
-        if self.stored_global_plan is None:
-            self.store_current_plan()
-
     def _camera_depth_callback(self, msg):
         """Store latest camera depth data"""
         self.latest_camera_depth = list(msg.data)
@@ -134,6 +142,9 @@ class BaseCarControlNode(Node):
     def _yolo_callback(self, msg):
         """Store latest YOLO target info"""
         self.latest_yolo_info = list(msg.data)
+
+    def get_goal_pose(self):
+        return self.latest_goal_pose.pose.position
 
     # Helper methods for navigation data access
     def get_car_position_and_orientation(self):
@@ -144,45 +155,39 @@ class BaseCarControlNode(Node):
             Tuple containing (position, orientation) or (None, None) if data unavailable
         """
         if self.latest_amcl_pose:
-            pos = self.latest_amcl_pose.pose.pose.position
+            position = self.latest_amcl_pose.pose.pose.position
             orientation = self.latest_amcl_pose.pose.pose.orientation
-            return [pos.x, pos.y, pos.z], [
-                orientation.x,
-                orientation.y,
-                orientation.z,
-                orientation.w,
-            ]
+            return position, orientation
         return None, None
 
-    def get_path_points(self, dynamic=True, include_orientation=True):
-        """
-        Get path points from global plan
+    def cmd_vel_callback(self, msg: Twist):
+        wheel_distance = 0.5
+        max_speed = 30.0
+        min_speed = -30.0
+        v = msg.linear.x
+        omega = msg.angular.z
 
-        Args:
-            dynamic: If True, always use the latest plan from Nav2
-                   If False, use the stored plan (won't update with new Nav2 plans)
-            include_orientation: If True, return position and orientation data
-                                If False, return only position data
+        v_left = v - (wheel_distance / 2.0) * omega
+        v_right = v + (wheel_distance / 2.0) * omega
 
-        Returns:
-            If include_orientation=True: List of dicts with 'position' and 'orientation' keys
-            If include_orientation=False: List of [x, y] position arrays
-        """
+        v_left = max(min_speed, min(max_speed, v_left))
+        v_right = max(min_speed, min(max_speed, v_right))
+
+        speed_msg = Float32MultiArray()
+        speed_msg.data = [v_left, v_right]
+        self.latest_cmd_vel = [v_left, v_right]
+
+
+    def get_cmd_vel_data(self):
+        return self.latest_cmd_vel
+
+    def get_path_points(self, include_orientation=True):
         path_points = []
 
-        # Determine which plan to use
-        plan_to_use = self.latest_global_plan if dynamic else self.stored_global_plan
-
-        # If we want a static plan but don't have one, fall back to latest
-        if not dynamic and not self.stored_global_plan:
-            plan_to_use = self.latest_global_plan
-            self.get_logger().warn("No stored plan available, using latest plan")
-
-        # Extract points from the selected plan
+        plan_to_use = self.latest_global_plan
         if plan_to_use and plan_to_use.poses:
             for pose in plan_to_use.poses:
                 pos = pose.pose.position
-
                 if include_orientation:
                     # Return both position and orientation data
                     orient = pose.pose.orientation
@@ -193,28 +198,8 @@ class BaseCarControlNode(Node):
                         }
                     )
                 else:
-                    # Legacy mode - just return position as before
                     path_points.append([pos.x, pos.y])
-
         return path_points
-
-    def store_current_plan(self):
-        """Store the current global plan as the fixed plan"""
-        if self.latest_global_plan:
-
-            self.stored_global_plan = copy.deepcopy(self.latest_global_plan)
-            self.plan_lock_active = True
-            self.get_logger().info("Global plan stored (locked)")
-            return True
-        else:
-            self.get_logger().warn("No global plan available to store")
-            return False
-
-    def clear_stored_plan(self):
-        """Clear the stored plan and revert to dynamic updates"""
-        self.stored_global_plan = None
-        self.plan_lock_active = False
-        self.get_logger().info("Stored plan cleared (using dynamic updates)")
 
     # Common methods for all car control nodes
     def key_callback(self, msg):

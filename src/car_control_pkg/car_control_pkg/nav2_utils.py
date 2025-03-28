@@ -83,8 +83,8 @@ def cal_distance(car_pos, target_pos):
     return math.hypot(car_pos[0] - target_pos[0], car_pos[1] - target_pos[1])
 
 
-def calculate_diff_angle(car_position, car_orientation, target_x, target_y):
-    target_pos = [target_x, target_y]
+def calculate_diff_angle(car_position, car_orientation, target_point):
+    target_pos = [target_point[0], target_point[1]]
     car_position = [car_position[0], car_position[1]]
     diff_angle = calculate_angle_point(
         car_orientation[0], car_orientation[1], car_position, target_pos

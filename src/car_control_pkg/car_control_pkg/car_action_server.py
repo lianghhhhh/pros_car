@@ -39,7 +39,7 @@ class NavigationActionServer(Node):
         if requested_mode == "Manual_Nav":
             car_position, _ = self.car_control_node.get_car_position_and_orientation()
             path_points = self.car_control_node.get_path_points(
-                dynamic=True, include_orientation=True
+                include_orientation=True
             )
             if not car_position or not path_points:
                 self.get_logger().error("Cannot start navigation: Missing data")
@@ -70,9 +70,7 @@ class NavigationActionServer(Node):
             goal_handle.abort()
             return result
 
-        path_points = self.car_control_node.get_path_points(
-            dynamic=True, include_orientation=True
-        )
+        path_points = self.car_control_node.get_path_points(include_orientation=True)
         if not path_points:
             self.get_logger().error("Navigation failed: No path points available")
             result.success = False
@@ -91,9 +89,6 @@ class NavigationActionServer(Node):
             rate.sleep()
 
             if self.cancel_flag == 0:
-                car_position, car_orientation = (
-                    self.car_control_node.get_car_position_and_orientation()
-                )
                 if not car_position:
                     self.get_logger().warn("Lost position data during navigation")
                     self.car_control_node.publish_control("STOP")
@@ -101,68 +96,88 @@ class NavigationActionServer(Node):
                     result.message = "Lost position data during navigation"
                     goal_handle.abort()
                     return result
-
-                # Extract position and orientation
-                car_position = car_position[0:3]
-                car_orientation = car_orientation[2:4]
-
-                # Calculate next target point
-                target_x, target_y = self.get_next_target_point(
-                    car_position, path_points=path_points
+                car_position_tmp, car_orientation_tmp = (
+                    self.car_control_node.get_car_position_and_orientation()
                 )
-                final_pos = path_points[-1]["position"][0:2]
-                target_distance = cal_distance(car_position, final_pos)
-
-                # Check if goal reached
-                if target_x is None or target_distance < 0.5:
-                    # self.get_logger().info(
-                    #     f"Goal reached! Distance: {target_distance:.2f}m"
-                    # )
-                    self.car_control_node.publish_control("STOP")
-                    result.success = True
-                    result.message = "Navigation completed successfully"
-                    goal_handle.succeed()
-                    return result
-
-                # Calculate angle difference to determine control action
-                diff_angle = calculate_diff_angle(
-                    car_position, car_orientation, target_x, target_y
-                )
-
-                # Determine control action
-                if -20 < diff_angle < 20:
-                    action_key = "FORWARD"
-                elif diff_angle < -20 and diff_angle > -180:
-                    action_key = "CLOCKWISE_ROTATION"
-                elif diff_angle > 20 and diff_angle < 180:
-                    action_key = "COUNTERCLOCKWISE_ROTATION"
-                else:
+                car_position = [car_position_tmp.x, car_position_tmp.y]
+                car_orientation = [car_orientation_tmp.z, car_orientation_tmp.w]
+                path_points = self.car_control_node.get_path_points()
+                goal_pose_tmp = self.car_control_node.get_goal_pose()
+                goal_pose = [goal_pose_tmp.x, goal_pose_tmp.y]
+                target_distance = cal_distance(car_position[0:2], goal_pose[0:2])
+                if target_distance < 0.5:
                     action_key = "STOP"
+                else:
+                    target_points, orientation_points = self.get_next_target_point(car_position=car_position, path_points=path_points)
+                    if target_points is None:
+                        # We've reached the goal or have no more waypoints
+                        self.get_logger().info("No more target points - goal reached or path complete")
+                        self.car_control_node.publish_control("STOP")
+                        result.success = True
+                        result.message = "Navigation goal reached"
+                        goal_handle.succeed()
+                        return result
 
-                # Send control command
-                self.car_control_node.publish_control(action_key)
-
-                # Send feedback
+                    # Continue with navigation if we have a valid target point
+                    diff_angle = calculate_diff_angle(car_position[0:2], car_orientation[0:2], target_points[0:2])
+                    if diff_angle < 20 and diff_angle > -20:
+                        action_key = "FORWARD"
+                    elif diff_angle < -20 and diff_angle > -180:
+                        action_key = "CLOCKWISE_ROTATION"
+                    elif diff_angle > 20 and diff_angle < 180:
+                        action_key = "COUNTERCLOCKWISE_ROTATION"
+                    self.car_control_node.publish_control(action_key)
                 feedback_msg = NavGoal.Feedback()
-                feedback_msg.distance_to_goal = float(target_distance)
+                # feedback_msg.distance_to_goal = float(target_distance)
+                feedback_msg.distance_to_goal = float(0.0)
                 goal_handle.publish_feedback(feedback_msg)
             else:
                 self.car_control_node.publish_control("STOP")
 
-    def get_next_target_point(
-        self, car_position, path_points, min_required_distance=0.5
-    ):
-        if path_points is None:
-            self.get_logger().error(
-                "Error: global_plan_msg is None or poses is missing!"
-            )
+    def get_next_target_point(self, car_position, path_points, min_required_distance=0.5):
+        """Get next target point along the path"""
+        if path_points is None or not path_points:
+            self.get_logger().error("Error: No path points available!")
             return None, None
+
+        # Check if we've reached the end of the path
+        if self.index >= len(path_points) - 1:
+            self.get_logger().info("Reached last waypoint")
+            return None, None
+
+        # Process normal waypoint
         while self.index < len(path_points) - 1:
-            target_x = path_points[self.index]["position"][0]
-            target_y = path_points[self.index]["position"][1]
+            try:
+                target_x = path_points[self.index]["position"][0]
+                target_y = path_points[self.index]["position"][1]
+                orientation_x = path_points[self.index]["orientation"][0]
+                orientation_y = path_points[self.index]["orientation"][1]
+
+            except (KeyError, IndexError) as e:
+                self.get_logger().error(f"Invalid path point format: {e}")
+                self.index += 1
+                continue
+
             distance_to_target = cal_distance(car_position, (target_x, target_y))
+
             if distance_to_target < min_required_distance:
                 self.index += 1
             else:
-                return target_x, target_y
+                return [target_x, target_y], [orientation_x, orientation_y]
+
+        # If we reach here, we're at the last point
+        try:
+            last_idx = len(path_points) - 1
+            last_x = path_points[last_idx]["position"][0]
+            last_y = path_points[last_idx]["position"][1]
+            last_ox = path_points[last_idx]["orientation"][0]
+            last_oy = path_points[last_idx]["orientation"][1]
+
+            # Check if we're close enough to last point
+            final_dist = cal_distance(car_position, (last_x, last_y))
+            if (final_dist >= min_required_distance):
+                return [last_x, last_y], [last_ox, last_oy]
+        except (KeyError, IndexError):
+            pass
+
         return None, None
