@@ -168,6 +168,7 @@ class MenuApp:
             widget=self.main_frame,
             palette=palette,
             unhandled_input=self.handle_unhandled_input,
+            handle_mouse=False  # Disable mouse input
         )
         loop.screen.set_terminal_properties(colors=256)
         loop.run()
