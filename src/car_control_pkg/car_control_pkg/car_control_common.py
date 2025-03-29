@@ -144,7 +144,16 @@ class BaseCarControlNode(Node):
         self.latest_yolo_info = list(msg.data)
 
     def get_goal_pose(self):
-        return self.latest_goal_pose.pose.position
+        """Get goal position or None if unavailable"""
+        if self.latest_goal_pose is None:
+            return None
+
+        try:
+            return self.latest_goal_pose.pose.position
+        except AttributeError:
+            # Handle cases where the message structure is unexpected
+            self.get_logger().warn("Goal pose has unexpected structure")
+            return None
 
     # Helper methods for navigation data access
     def get_car_position_and_orientation(self):
