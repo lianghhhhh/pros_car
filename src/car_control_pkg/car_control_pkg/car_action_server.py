@@ -20,8 +20,6 @@ class NavigationActionServer(Node):
         self.car_control_node = car_control_node
         self.nav_controller = NavigationController(self.car_control_node)
         self.get_logger().info("Navigation Action Server initialized")
-        self.index = 0
-        self.cancel_flag = 0
 
     def goal_callback(self, goal_request):
         self.get_logger().info("Received goal request")
@@ -39,12 +37,10 @@ class NavigationActionServer(Node):
     def cancel_callback(self, goal_handle):
         self.get_logger().info("Enter the cancel callback")
         self.car_control_node.publish_control("STOP")
-        self.cancel_flag = 1
         return CancelResponse.ACCEPT
 
     def execute_callback(self, goal_handle):
         """Navigation action callback"""
-        self.index = 0
         result = NavGoal.Result()
 
         rate = self.create_rate(10)
@@ -54,7 +50,6 @@ class NavigationActionServer(Node):
             rate.sleep()
             nav_result = self.nav_controller.manual_nav()
             if isinstance(nav_result, NavGoal.Result):
-                # Navigation has completed or encountered an error
                 if nav_result.success:
                     self.get_logger().info(f"Navigation completed: {nav_result.message}")
                     goal_handle.succeed()

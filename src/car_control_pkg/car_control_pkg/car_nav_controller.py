@@ -1,11 +1,4 @@
 from car_control_pkg.nav2_utils import (
-    get_yaw_from_quaternion,
-    get_direction_vector,
-    get_angle_to_target,
-    calculate_angle_point,
-    quaternion_to_euler,
-    calculate_angle_to_target,
-    round_to_decimal_places,
     cal_distance,
     calculate_diff_angle,
 )
@@ -22,7 +15,7 @@ class NavigationController():
         path_points = self.car_control_node.get_path_points()
         goal_pose = self.car_control_node.get_goal_pose()
 
-        # Single if statement with specific error messages
+        # Check data validity
         if not car_position or not path_points or not goal_pose:
             # Determine the specific error message based on what's missing
             message = "Cannot obtain car position data" if not car_position else \
