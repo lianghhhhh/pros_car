@@ -16,7 +16,8 @@ class ModeManager:
                 self.ros_manager.publish_car_signal(car_control_signal)
 
         elif "Manual Arm Control" in pressed_key_info:
-            pass
+            arm_control_signal = f"{title}:{subtitle}"
+            self.ros_manager.publish_arm_signal(arm_control_signal)
         elif "Manual Crane Control" in pressed_key_info:
             pass
         elif "Automatic Arm Mode" in pressed_key_info:

@@ -19,6 +19,10 @@ class ROS2Manager(Node):
             String, "car_control_signal", 10
         )
 
+        self.arm_control_publisher = self.create_publisher(
+            String, "arm_control_signal", 10
+        )
+
         self.test_publisher = self.create_publisher(String, "test", 10)
 
         # Subscriber（接收來自其他節點的訊息）
@@ -123,6 +127,11 @@ class ROS2Manager(Node):
         msg = String()
         msg.data = command
         self.car_control_publisher.publish(msg)
+
+    def publish_arm_signal(self, command):
+        msg = String()
+        msg.data = command
+        self.arm_control_publisher.publish(msg)
 
     def listener_callback(self, msg):
         """監聽來自其他節點的回應"""

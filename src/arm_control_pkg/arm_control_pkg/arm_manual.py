@@ -1,0 +1,48 @@
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Float32MultiArray, String
+
+
+class ManualControlNode(Node):
+    def __init__(self, arm_commute_node, arm_angle_control_node):
+        # Initialize the base class with the node name
+        super().__init__("manual_arm_control_node")
+        self.arm_commute_node = arm_commute_node
+        self.arm_angle_control_node = arm_angle_control_node
+
+        self.subscription = self.create_subscription(
+            String, "arm_control_signal", self.arm_control_signal_callback, 10
+        )
+
+    def arm_control_signal_callback(self, msg):
+        self.latest_control_signal = msg.data
+        arm_signal = self.parse_control_signal(msg.data)
+
+        # Check if arm_signal contains valid data
+        if arm_signal[0] is None or arm_signal[1] is None:
+            return
+
+        index, key = int(arm_signal[0]), arm_signal[1].lower()
+
+        # Handle different keys
+        if key == "i":
+            self.arm_angle_control_node.arm_increase_decrease(index, 10)
+        elif key == "k":
+            self.arm_angle_control_node.arm_increase_decrease(index, -10)
+        elif key == "b":
+            self.arm_angle_control_node.arm_default_change()
+        else:
+            return
+
+        self.arm_commute_node.publish_arm_angle()
+
+    def parse_control_signal(self, signal_str: str):
+        """
+        解析從 topic 收到的控制字串，格式預期為 "mode:keyboard_command"
+        回傳mode, keyboard_command。
+        """
+        parts = [s.strip() for s in signal_str.split(":")]
+        if len(parts) >= 2:
+            return parts[0], parts[1].lower()
+        else:
+            return None, None
