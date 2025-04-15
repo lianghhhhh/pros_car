@@ -14,7 +14,9 @@ def main(args=None):
         arm_params=load_params, arm_angle_control=arm_agnle_control
     )
     arm_manual_node = ManualControlNode(
-        arm_commute_node=arm_commute_node, arm_angle_control_node=arm_agnle_control
+        arm_commute_node=arm_commute_node,
+        arm_angle_control_node=arm_agnle_control,
+        arm_params=load_params,
     )
     executor = MultiThreadedExecutor()
     executor.add_node(arm_commute_node)

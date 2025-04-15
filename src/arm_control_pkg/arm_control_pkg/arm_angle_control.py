@@ -1,3 +1,9 @@
+"""
+This class is for control robot arm angles,
+all angle need to thought self.joint_positions to change
+"""
+
+
 class ArmAngleControl:
     def __init__(self, arm_params):
         self.arm_params = arm_params.get_arm_params()
@@ -7,6 +13,24 @@ class ArmAngleControl:
     def get_arm_angles(self):
         return self.joint_positions
 
+    def arm_init(self):
+        """Initialize arm joints to reset positions"""
+        # Get the total number of joints from config
+        joints_count = int(self.arm_params["global"]["joints_count"])
+        # Set each joint to its reset position or default to 90 if not specified
+        for i in range(joints_count):
+            joint_key = str(i)
+            if (
+                "joints_reset" in self.arm_params
+                and joint_key in self.arm_params["joints_reset"]
+            ):
+                position = self.arm_params["joints_reset"][joint_key]
+            else:
+                position = 90.0  # Default position when not specified
+
+            self.joint_positions.append(float(position))
+        print(f"Initialized arm with positions: {self.joint_positions}")
+
     def arm_default_change(self):
         """Change a joint angle to its default position"""
         # Get the total number of joints from config
@@ -15,6 +39,7 @@ class ArmAngleControl:
             self.joint_positions[index] = float(joints_reset[index])
 
     def arm_index_change(self, index, angle):
+        """Just change a joint angle to a specified value"""
         self.joint_positions[index] = angle
         self.joint_positions = self.validate_joint_limits(self.joint_positions)
 
@@ -45,24 +70,6 @@ class ArmAngleControl:
 
         # Validate all joint limits and return the updated positions
         self.joint_positions = self.validate_joint_limits(self.joint_positions)
-
-    def arm_init(self):
-        """Initialize arm joints to reset positions"""
-        # Get the total number of joints from config
-        joints_count = int(self.arm_params["global"]["joints_count"])
-        # Set each joint to its reset position or default to 90 if not specified
-        for i in range(joints_count):
-            joint_key = str(i)
-            if (
-                "joints_reset" in self.arm_params
-                and joint_key in self.arm_params["joints_reset"]
-            ):
-                position = self.arm_params["joints_reset"][joint_key]
-            else:
-                position = 90.0  # Default position when not specified
-
-            self.joint_positions.append(float(position))
-        print(f"Initialized arm with positions: {self.joint_positions}")
 
     def validate_joint_limits(self, positions):
         """Validate joint positions against limits from YAML config"""

@@ -1,6 +1,8 @@
 global:
   joints_count: 5.0
   arm_topic: /robot_arm
+  pybullet_gui: true
+  angle_step: 5.0  # Amount to increase/decrease angle by with keyboard input
 
 joints:
   0:
@@ -25,3 +27,4 @@ joints_reset:
   2: 90.0
   3: 90.0
   4: 90.0
+

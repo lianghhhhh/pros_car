@@ -54,7 +54,6 @@ class ArmCummuteNode(Node):
         """Publish the current arm joint angles"""
         joint_positions = self.arm_angle_control.get_arm_angles()
         msg = JointTrajectoryPoint()
-        # Convert degrees to radians before publishing
         radian_positions = self.degrees_to_radians(joint_positions)
         msg.positions = radian_positions
         msg.velocities = []

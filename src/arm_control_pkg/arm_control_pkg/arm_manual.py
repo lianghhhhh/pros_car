@@ -4,11 +4,12 @@ from std_msgs.msg import Float32MultiArray, String
 
 
 class ManualControlNode(Node):
-    def __init__(self, arm_commute_node, arm_angle_control_node):
+    def __init__(self, arm_commute_node, arm_angle_control_node, arm_params):
         # Initialize the base class with the node name
         super().__init__("manual_arm_control_node")
         self.arm_commute_node = arm_commute_node
         self.arm_angle_control_node = arm_angle_control_node
+        self.arm_params = arm_params.get_arm_params()
 
         self.subscription = self.create_subscription(
             String, "arm_control_signal", self.arm_control_signal_callback, 10
@@ -26,9 +27,13 @@ class ManualControlNode(Node):
 
         # Handle different keys
         if key == "i":
-            self.arm_angle_control_node.arm_increase_decrease(index, 10)
+            self.arm_angle_control_node.arm_increase_decrease(
+                index, self.arm_params["global"]["angle_step"]
+            )
         elif key == "k":
-            self.arm_angle_control_node.arm_increase_decrease(index, -10)
+            self.arm_angle_control_node.arm_increase_decrease(
+                index, self.arm_params["global"]["angle_step"] * -1.0
+            )
         elif key == "b":
             self.arm_angle_control_node.arm_default_change()
         else:
