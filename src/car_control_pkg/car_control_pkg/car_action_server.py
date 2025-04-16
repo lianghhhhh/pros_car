@@ -6,6 +6,7 @@ from car_control_pkg.car_control_common import BaseCarControlNode
 
 from car_control_pkg.car_nav_controller import NavigationController
 
+
 class NavigationActionServer(Node):
     def __init__(self, car_control_node):
         super().__init__("navigation_action_server_node")
@@ -51,7 +52,9 @@ class NavigationActionServer(Node):
             nav_result = self.nav_controller.manual_nav()
             if isinstance(nav_result, NavGoal.Result):
                 if nav_result.success:
-                    self.get_logger().info(f"Navigation completed: {nav_result.message}")
+                    self.get_logger().info(
+                        f"Navigation completed: {nav_result.message}"
+                    )
                     goal_handle.succeed()
                 else:
                     self.get_logger().error(f"Navigation failed: {nav_result.message}")
@@ -66,6 +69,3 @@ class NavigationActionServer(Node):
             goal_handle.publish_feedback(feedback_msg)
 
         return result
-
-
-
