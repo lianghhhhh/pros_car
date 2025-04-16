@@ -49,6 +49,13 @@ class NavigationActionServer(Node):
         while rclpy.ok():
             # First give executor time to process callbacks
             rate.sleep()
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info("Navigation canceled by user")
+                self.car_control_node.publish_control("STOP")
+                result = NavGoal.Result(success=False, message="Navigation canceled")
+                goal_handle.canceled()
+                break
+
             nav_result = self.nav_controller.manual_nav()
             if isinstance(nav_result, NavGoal.Result):
                 if nav_result.success:

@@ -21,7 +21,11 @@ class ModeManager:
             arm_control_signal = f"{title}:{subtitle}"
             self.ros_manager.publish_arm_signal(arm_control_signal)
         elif "Automatic Arm Mode" in pressed_key_info:
-            pass
+            arm_control_signal = f"{title}:{subtitle}"
+            if subtitle == "q":
+                self.ros_manager.arm_action_client.cancel_arm()
+            else:
+                self.ros_manager.arm_action_client.send_arm_mode(mode=title)
         elif "Manual Crane Control" in pressed_key_info:
             pass
         # else:

@@ -4,46 +4,75 @@ from car_control_pkg.nav2_utils import (
 )
 from action_interface.action import NavGoal
 
-class NavigationController():
+
+class NavigationController:
     def __init__(self, car_control_node):
         self.car_control_node = car_control_node
 
     def check_prerequisites(self):
         """Check if all prerequisites for navigation are met"""
         # Check if we have position data
-        car_position, car_orientation = self.car_control_node.get_car_position_and_orientation()
+        car_position, car_orientation = (
+            self.car_control_node.get_car_position_and_orientation()
+        )
         path_points = self.car_control_node.get_path_points()
         goal_pose = self.car_control_node.get_goal_pose()
 
         # Check data validity
         if not car_position or not path_points or not goal_pose:
             # Determine the specific error message based on what's missing
-            message = "Cannot obtain car position data" if not car_position else \
-                    "No path points available for navigation" if not path_points else \
-                    "No goal pose defined for navigation"
+            message = (
+                "Cannot obtain car position data"
+                if not car_position
+                else (
+                    "No path points available for navigation"
+                    if not path_points
+                    else "No goal pose defined for navigation"
+                )
+            )
 
             return NavGoal.Result(success=False, message=message)
         else:
             # All prerequisites are met
             return car_position, car_orientation, path_points, goal_pose
 
-    def data_init(self, car_position, car_orientation,goal_pose):
-        return [car_position.x, car_position.y], [car_orientation.z, car_orientation.w], [goal_pose.x, goal_pose.y]
+    def data_init(self, car_position, car_orientation, goal_pose):
+        return (
+            [car_position.x, car_position.y],
+            [car_orientation.z, car_orientation.w],
+            [goal_pose.x, goal_pose.y],
+        )
 
     def reset_index(self):
         self.index = 0
 
     def manual_nav(self):
-        car_position, car_orientation, path_points, goal_pose = self.check_prerequisites()
-        car_position, car_orientation, goal_pose = self.data_init(car_position, car_orientation,goal_pose)
+        result = self.check_prerequisites()
+
+        if isinstance(result, NavGoal.Result):
+            # 有錯誤就直接回傳結果，不繼續導航流程
+            return result
+
+        # 正常情況才解包
+        car_position, car_orientation, path_points, goal_pose = result
+        car_position, car_orientation, goal_pose = self.data_init(
+            car_position, car_orientation, goal_pose
+        )
+
         target_distance = cal_distance(car_position, goal_pose)
         if target_distance < 0.5:
             self.car_control_node.publish_control("STOP")
-            return NavGoal.Result(success=True, message="Navigation goal reached successfully. Final distance")
+            return NavGoal.Result(
+                success=True,
+                message="Navigation goal reached successfully. Final distance",
+            )
         else:
-            target_points, orientation_points = self.get_next_target_point(car_position=car_position,
-                                                                           path_points=path_points)
-            diff_angle = calculate_diff_angle(car_position, car_orientation, target_points)
+            target_points, orientation_points = self.get_next_target_point(
+                car_position=car_position, path_points=path_points
+            )
+            diff_angle = calculate_diff_angle(
+                car_position, car_orientation, target_points
+            )
             action_key = self.choose_action(diff_angle)
             self.car_control_node.publish_control(action_key)
 
@@ -56,7 +85,9 @@ class NavigationController():
             action_key = "COUNTERCLOCKWISE_ROTATION"
         return action_key
 
-    def get_next_target_point(self, car_position, path_points, min_required_distance=0.5):
+    def get_next_target_point(
+        self, car_position, path_points, min_required_distance=0.5
+    ):
         """
         Get the next target point along the path that is at least min_required_distance away
         from the car_position. Returns a tuple of ([target_x, target_y], [orientation_x, orientation_y])
@@ -88,10 +119,14 @@ class NavigationController():
             if distance_to_target >= min_required_distance:
                 # Update self.index to current valid point index for future calls
                 self.index = idx
-                logger.debug(f"Found valid target point at index {idx} with distance {distance_to_target:.2f}")
+                logger.debug(
+                    f"Found valid target point at index {idx} with distance {distance_to_target:.2f}"
+                )
                 return [target_x, target_y], [orientation_x, orientation_y]
             else:
-                logger.debug(f"Skipping point at index {idx}: distance {distance_to_target:.2f} is less than required {min_required_distance}")
+                logger.debug(
+                    f"Skipping point at index {idx}: distance {distance_to_target:.2f} is less than required {min_required_distance}"
+                )
 
         # If no intermediate point meets the criteria, return the final point regardless of distance.
         try:
@@ -100,7 +135,9 @@ class NavigationController():
             orient = last_point["orientation"]
             last_x, last_y = pos[0], pos[1]
             last_ox, last_oy = orient[0], orient[1]
-            logger.info("No point met the minimum distance requirement; using the last point as target.")
+            logger.info(
+                "No point met the minimum distance requirement; using the last point as target."
+            )
             self.index = len(path_points) - 1
             return [last_x, last_y], [last_ox, last_oy]
         except (KeyError, IndexError, TypeError) as e:

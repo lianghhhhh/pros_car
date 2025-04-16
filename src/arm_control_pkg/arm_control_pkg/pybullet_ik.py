@@ -37,7 +37,7 @@ class PybulletRobotController:
         self.num_joints = None
         self.controllable_joints = self.arm_params["pybullet"]["controllable_joints"]
         self.end_eff_index = self.arm_params["pybullet"]["end_eff_index"]
-        self.time_step = self.arm_params["pybullet"]["time_step"]
+        self.time_step = float(self.arm_params["pybullet"]["time_step"])
         self.previous_ee_position = None
         self.initial_height = self.arm_params["pybullet"]["initial_height"]
         self.createWorld(
@@ -65,7 +65,7 @@ class PybulletRobotController:
         rotation = R.from_euler("z", 90, degrees=True).as_quat()
 
         # loading robot into the environment
-        urdf_file = "urdf/" + self.robot_type + ".urdf"
+        # urdf_file = "urdf/" + self.robot_type + ".urdf"
         self.robot_id = p.loadURDF(
             self.urdf_path,
             useFixedBase=True,

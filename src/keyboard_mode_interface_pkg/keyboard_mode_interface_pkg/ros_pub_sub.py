@@ -4,6 +4,7 @@ from std_msgs.msg import String
 from rclpy.action import ActionClient
 from action_msgs.msg import GoalStatus
 from keyboard_mode_interface_pkg.car_action_server_client import CarActionClient
+from keyboard_mode_interface_pkg.arm_action_server_client import ArmActionClient
 
 
 class ROS2Manager(Node):
@@ -28,6 +29,9 @@ class ROS2Manager(Node):
 
         # create car action client
         self.car_action_client = CarActionClient(self)
+
+        # create arm action client
+        self.arm_action_client = ArmActionClient(self)
 
         # self.arm_client = ActionClient(self, ArmGoal, "arm_action_server")
         # self.current_arm_goal_handle = None

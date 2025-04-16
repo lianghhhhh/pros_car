@@ -2,11 +2,10 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer, GoalResponse, CancelResponse
 from action_interface.action import ArmGoal
-from arm_control_pkg.arm_auto_controller import ArmAutoController
 
 
 class ArmActionServer(Node):
-    def __init__(self, arm_commute_node):
+    def __init__(self, arm_commute_node, arm_auto_controller):
         super().__init__("arm_action_server_node")
         self._action_server = ActionServer(
             self,
@@ -17,25 +16,16 @@ class ArmActionServer(Node):
             cancel_callback=self.cancel_callback,
         )
         self.arm_commute_node = arm_commute_node
-        self.arm_auto_controller = ArmAutoController(self.arm_commute_node)
+        self.arm_auto_controller = arm_auto_controller
         self.get_logger().info("Arm Action Server initialized")
 
     def goal_callback(self, goal_request):
         self.get_logger().info("Received arm auto request")
         requested_mode = goal_request.mode
-        if requested_mode == "wave":
-            car_position, _ = self.car_control_node.get_car_position_and_orientation()
-            path_points = self.car_control_node.get_path_points(
-                include_orientation=True
-            )
-            if not car_position or not path_points:
-                self.get_logger().error("Cannot start arm auto: Missing data")
-                return GoalResponse.REJECT
         return GoalResponse.ACCEPT
 
     def cancel_callback(self, goal_handle):
         self.get_logger().info("Enter the cancel callback")
-        self.car_control_node.publish_control("STOP")
         return CancelResponse.ACCEPT
 
     def execute_callback(self, goal_handle):

@@ -13,5 +13,9 @@ class ArmAutoController:
         self.arm_params = arm_params.get_arm_params()
         self.arm_commute_node = arm_commute_node
         self.pybullet_robot_controller = PybulletRobotController(
-            arm_params=self.arm_params,
+            arm_params=arm_params,
         )
+
+    def arm_wave(self):
+
+        pass

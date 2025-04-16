@@ -1,14 +1,14 @@
 import rclpy
 from rclpy.action import ActionClient
 from action_msgs.msg import GoalStatus
-from action_interface.action import NavGoal
+from action_interface.action import ArmGoal
 import traceback
 from keyboard_mode_interface_pkg.action_server_handler import (
     handle_action_result,
 )
 
 
-class CarActionClient:
+class ArmActionClient:
     def __init__(self, node):
         """
         Initializes the CarActionClient.
@@ -19,15 +19,15 @@ class CarActionClient:
         self._node = node  # Store the node instance
         self._logger = node.get_logger()  # Get logger from the node
 
-        self.nav_client = ActionClient(self._node, NavGoal, "nav_action_server")
+        self.arm_client = ActionClient(self._node, ArmGoal, "arm_action_server")
         self.current_goal_handle = None
         self._get_result_future = None  # Initialize this attribute
 
-        self._logger.info("CarActionClient initialized.")
+        self._logger.info("ArmActionClient initialized.")
 
-    def send_navigation_goal(self, mode):
+    def send_arm_mode(self, mode):
         """Send a navigation goal"""
-        goal_msg = NavGoal.Goal()
+        goal_msg = ArmGoal.Goal()
         goal_msg.mode = mode
 
         # Ensure previous goal processing is cleared before sending a new one
@@ -45,43 +45,35 @@ class CarActionClient:
             self._get_result_future = None
 
         # Wait for server with timeout
-        if not self.nav_client.wait_for_server(timeout_sec=1.0):
-            self._logger.error("Navigation server not available!")
+        if not self.arm_client.wait_for_server(timeout_sec=1.0):
+            self._logger.error("Arm server not available!")
             return False
 
         self._logger.info(f"Sending navigation goal with mode: {mode}")
-        send_goal_future = self.nav_client.send_goal_async(
+        send_goal_future = self.arm_client.send_goal_async(
             goal_msg, feedback_callback=self.feedback_callback
         )
         send_goal_future.add_done_callback(self.goal_response_callback)
 
         return True
 
-    def cancel_navigation_goal(self):
-        """Cancel the current navigation goal if one exists and is active"""
+    def cancel_arm(self):
+        """Cancel the current navigation goal if one exists"""
         if self.current_goal_handle is None:
             self._logger.warn("No active navigation goal handle to cancel.")
             return False
 
-        # Check the status attribute instead of is_active
-        current_status = self.current_goal_handle.status
-        if current_status not in [
-            GoalStatus.STATUS_ACCEPTED,
-            GoalStatus.STATUS_EXECUTING,
-        ]:
-            self._logger.warn(
-                f"Goal is no longer active (status: {GoalStatus.to_string(current_status)}), cannot cancel."
-            )
+        if not self.current_goal_handle.is_active:
+            self._logger.warn("Goal is no longer active, cannot cancel.")
             return False
 
         self._logger.info("Requesting navigation goal cancellation...")
         try:
             cancel_future = self.current_goal_handle.cancel_goal_async()
-            # It's good practice to add a callback to confirm cancellation acceptance
             cancel_future.add_done_callback(self.cancel_result_callback)
             return True
         except Exception as e:
-            self._logger.error(f"Error requesting navigation goal cancellation: {e}")
+            self._logger.error(f"Error cancelling navigation goal: {e}")
             return False
 
     def goal_response_callback(self, future):

@@ -12,13 +12,16 @@ def main(args=None):
     rclpy.init(args=args)
     load_params = LoadParams("arm_control_pkg")
     arm_agnle_control = ArmAngleControl(arm_params=load_params)
-    arm_auto_controller = ArmAutoController(arm_agnle_control)
     arm_commute_node = ArmCummuteNode(
         arm_params=load_params, arm_angle_control=arm_agnle_control
     )
-    arm_action_server = ArmActionServer(
+    arm_auto_controller = ArmAutoController(
+        arm_angle_control_node=arm_agnle_control,
+        arm_params=load_params,
         arm_commute_node=arm_commute_node,
-        arm_auto_controller=arm_auto_controller,
+    )
+    arm_action_server = ArmActionServer(
+        arm_commute_node=arm_commute_node, arm_auto_controller=arm_auto_controller
     )
     arm_manual_node = ManualControlNode(
         arm_commute_node=arm_commute_node,
@@ -28,6 +31,7 @@ def main(args=None):
     executor = MultiThreadedExecutor()
     executor.add_node(arm_commute_node)
     executor.add_node(arm_manual_node)
+    executor.add_node(arm_action_server)
     try:
         executor.spin()
     except KeyboardInterrupt:
