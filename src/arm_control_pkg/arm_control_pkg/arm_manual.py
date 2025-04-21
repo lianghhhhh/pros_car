@@ -18,12 +18,14 @@ class ManualControlNode(Node):
     def arm_control_signal_callback(self, msg):
         self.latest_control_signal = msg.data
         arm_signal = self.parse_control_signal(msg.data)
+        mode_str, key_str = arm_signal
 
-        # Check if arm_signal contains valid data
-        if arm_signal[0] is None or arm_signal[1] is None:
+        # 只在 mode_str 是数字、key_str 不为 None 时才继续，否则直接跳过
+        if mode_str is None or key_str is None or not mode_str.isdigit():
             return
 
-        index, key = int(arm_signal[0]), arm_signal[1].lower()
+        index = int(mode_str)
+        key = key_str.lower()
 
         # Handle different keys
         if key == "i":
