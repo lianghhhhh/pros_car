@@ -40,6 +40,15 @@ class ArmActionServer(Node):
         rate = self.create_rate(10)
         while rclpy.ok():
             rate.sleep()
+            if goal_handle.is_cancel_requested():
+                self.get_logger().info("Arm action canceled by client.")
+                # 你可以用 commute node 停動作
+                self.arm_commute_node.publish_control("STOP")
+                # 回報取消狀態
+                goal_handle.canceled()
+                result.success = False
+                result.message = "Canceled by user"
+                return result  # 或者 break 出迴圈後 return
             arm_auto_result = arm_auto_method()
             if isinstance(arm_auto_result, ArmGoal.Result):
                 if arm_auto_result.success:
