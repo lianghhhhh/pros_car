@@ -17,5 +17,8 @@ class ArmAutoController:
         )
 
     def arm_wave(self):
+        pass
 
+    def test(self):
+        print("test")
         pass

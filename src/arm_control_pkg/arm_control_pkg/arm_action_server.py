@@ -21,7 +21,6 @@ class ArmActionServer(Node):
 
     def goal_callback(self, goal_request):
         self.get_logger().info("Received arm auto request")
-        requested_mode = goal_request.mode
         return GoalResponse.ACCEPT
 
     def cancel_callback(self, goal_handle):
@@ -29,45 +28,77 @@ class ArmActionServer(Node):
         return CancelResponse.ACCEPT
 
     def execute_callback(self, goal_handle):
-        """Navigation action callback"""
         result = ArmGoal.Result()
         mode = goal_handle.request.mode
-        self.get_logger().info(f"Executing navigation in mode: {mode}")
-        if mode == "wave":
-            arm_auto_method = self.arm_auto_controller.arm_wave
-        else:
-            pass
+        self.get_logger().info(f"Executing arm action in mode: {mode}")
+
+        # 選擇對應的自動化方法
+        arm_auto_method = self._select_arm_auto_method(mode)
+        if arm_auto_method is None:
+            self.get_logger().error(f"Unknown mode: {mode}")
+            result.success = False
+            result.message = f"Unknown mode: {mode}"
+            return result
+
         rate = self.create_rate(10)
         while rclpy.ok():
             rate.sleep()
-            if goal_handle.is_cancel_requested():
-                self.get_logger().info("Arm action canceled by client.")
-                # 你可以用 commute node 停動作
-                self.arm_commute_node.publish_control("STOP")
-                # 回報取消狀態
+
+            # 處理取消請求
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info("Navigation canceled by user")
+                result = ArmGoal.Result(success=False, message="Navigation canceled")
                 goal_handle.canceled()
-                result.success = False
-                result.message = "Canceled by user"
-                return result  # 或者 break 出迴圈後 return
+                break
+
+            # 執行自動化方法
             arm_auto_result = arm_auto_method()
             if isinstance(arm_auto_result, ArmGoal.Result):
                 if arm_auto_result.success:
                     self.get_logger().info(
-                        f"Arm auto completed: {arm_auto_result.message}"
+                        f"Arm action completed: {arm_auto_result.message}"
                     )
                     goal_handle.succeed()
                 else:
                     self.get_logger().error(
-                        f"Navigation failed: {arm_auto_result.message}"
+                        f"Arm action failed: {arm_auto_result.message}"
                     )
                     goal_handle.abort()
-                # Exit the loop and return the result once a final state is reached.
                 result = arm_auto_result
                 break
 
-            # Publish feedback if navigation is ongoing
-            feedback_msg = ArmGoal.Feedback()
-            feedback_msg.distance_to_goal = float(0.0)
-            goal_handle.publish_feedback(feedback_msg)
+            # 發佈反饋
+            self._publish_feedback(goal_handle)
 
         return result
+
+    def _select_arm_auto_method(self, mode: str):
+        """
+        根據模式選擇對應的 arm_auto_controller 方法
+        """
+        if mode == "wave":
+            return self.arm_auto_controller.arm_wave
+        elif mode == "test":
+            return self.arm_auto_controller.test
+        return None
+
+    def _check_and_handle_cancel(self, goal_handle, result):
+        """
+        檢查是否收到取消請求，並處理停止動作與回報
+        返回 (canceled: bool, result)
+        """
+        if goal_handle.is_cancel_requested:
+            self.get_logger().info("Arm action canceled by client.")
+            goal_handle.canceled()
+            result.success = False
+            result.message = "Canceled by user"
+            return True, result
+        return False, result
+
+    def _publish_feedback(self, goal_handle, distance: float = 0.0):
+        """
+        建立並發佈 Feedback 資訊
+        """
+        feedback = ArmGoal.Feedback()
+        feedback.distance_to_goal = float(distance)
+        goal_handle.publish_feedback(feedback)
