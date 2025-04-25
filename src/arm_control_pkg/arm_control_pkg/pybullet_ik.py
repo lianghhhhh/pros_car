@@ -47,6 +47,86 @@ class PybulletRobotController:
 
         # synchronize the robot with the initial position
         self.set_initial_joint_positions()
+        self.draw_end_effector_axes()
+
+    def markPointInFrontOfEndEffector(self, distance=0.3, color=[0, 1, 1]):
+        """
+        沿著 end-effector 的 local X 軸（前方）延伸指定距離，並在該處畫一個十字標記。
+
+        Args:
+            distance (float): 沿 local X 軸延伸的距離（單位：公尺）
+            color (list): 標記顏色，預設為青色 [0, 1, 1]
+        """
+        # 取得末端執行器的狀態
+        ee_state = p.getLinkState(self.robot_id, self.end_eff_index)
+        position = np.array(ee_state[0])  # 世界座標系下的位置
+        orientation = ee_state[1]  # 四元數
+
+        # 將姿態轉換成旋轉矩陣
+        rotation_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+
+        # local X 軸（前方）方向向量
+        forward_direction = rotation_matrix[:, 0]
+
+        # 計算標記點世界座標
+        target_point = position + forward_direction * distance
+
+        # 畫十字標記
+        line_length = 0.05
+        p.addUserDebugLine(
+            target_point - np.array([line_length, 0, 0]),
+            target_point + np.array([line_length, 0, 0]),
+            color,
+            lineWidth=2,
+        )
+        p.addUserDebugLine(
+            target_point - np.array([0, line_length, 0]),
+            target_point + np.array([0, line_length, 0]),
+            color,
+            lineWidth=2,
+        )
+        p.addUserDebugLine(
+            target_point - np.array([0, 0, line_length]),
+            target_point + np.array([0, 0, line_length]),
+            color,
+            lineWidth=2,
+        )
+
+    def draw_end_effector_axes(self, axis_length=0.2):
+        """
+        在 end-effector 當前位置畫出 local XYZ 軸（紅: X, 綠: Y, 藍: Z）
+
+        Args:
+            axis_length (float): 每個軸的長度
+        """
+        print("end : " + str(self.end_eff_index))
+        ee_state = p.getLinkState(self.robot_id, self.end_eff_index)
+        position = np.array(ee_state[0])
+        orientation = ee_state[1]
+
+        # 四元數轉旋轉矩陣
+        rot_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+
+        # 分別取出 local X, Y, Z 三軸方向向量
+        x_axis = rot_matrix[:, 0]  # local X
+        y_axis = rot_matrix[:, 1]  # local Y
+        z_axis = rot_matrix[:, 2]  # local Z
+
+        # 終點位置
+        x_end = position + x_axis * axis_length
+        y_end = position + y_axis * axis_length
+        z_end = position + z_axis * axis_length
+
+        # 畫三軸
+        p.addUserDebugLine(
+            position.tolist(), x_end.tolist(), [1, 0, 0], lineWidth=3
+        )  # X: 紅
+        p.addUserDebugLine(
+            position.tolist(), y_end.tolist(), [0, 1, 0], lineWidth=3
+        )  # Y: 綠
+        p.addUserDebugLine(
+            position.tolist(), z_end.tolist(), [0, 0, 1], lineWidth=3
+        )  # Z: 藍
 
     def getJointStates(self):
         joint_states = p.getJointStates(self.robot_id, self.controllable_joints)
@@ -55,7 +135,7 @@ class PybulletRobotController:
         joint_torques = [state[3] for state in joint_states]
         return joint_positions, joint_velocities, joint_torques
 
-    def move_end_effector_laterally(self, distance=0.1):
+    def move_end_effector_laterally(self, distance=0.3):
         """
         根據末端執行器目前旋轉姿態，沿其「右手方向（local-side）」平移一定距離。
 

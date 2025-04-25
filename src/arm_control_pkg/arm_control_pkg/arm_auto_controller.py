@@ -12,7 +12,10 @@ class ArmAutoController:
         pass
 
     def arm_ik_move(self):
-        t = self.pybullet_robot_controller.move_end_effector_laterally()
+        # t = self.pybullet_robot_controller.move_end_effector_laterally()
+        # print(t[0:5])
+        # self.pybullet_robot_controller.setJointPosition(position=t[0:5])
+        t = self.pybullet_robot_controller.markPointInFrontOfEndEffector()
         print(t[0:5])
         self.pybullet_robot_controller.setJointPosition(position=t[0:5])
         return ArmGoal.Result(success=True, message="success")
@@ -24,5 +27,5 @@ class ArmAutoController:
         for i in t:
             self.pybullet_robot_controller.setJointPosition(position=i)
             time.sleep(0.1)
-
+        self.pybullet_robot_controller.draw_end_effector_axes()
         return ArmGoal.Result(success=True, message="success")
