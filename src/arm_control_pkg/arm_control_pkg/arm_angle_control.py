@@ -15,20 +15,19 @@ class ArmAngleControl:
 
     def arm_init(self):
         """Initialize arm joints to reset positions"""
-        # Get the total number of joints from config
         joints_count = int(self.arm_params["global"]["joints_count"])
-        # Set each joint to its reset position or default to 90 if not specified
-        for i in range(joints_count):
-            joint_key = str(i)
-            if (
-                "joints_reset" in self.arm_params
-                and joint_key in self.arm_params["joints_reset"]
-            ):
-                position = self.arm_params["joints_reset"][joint_key]
-            else:
-                position = 90.0  # Default position when not specified
+        self.joint_positions = []
 
-            self.joint_positions.append(float(position))
+        for i in range(joints_count):
+            try:
+                pos = float(self.arm_params["joints_reset"][i])
+            except (KeyError, ValueError, TypeError):
+                pos = 90.0
+                self._node.get_logger().warn(
+                    f"Joint {i} has invalid or missing reset_position. Using default 90.0."
+                )
+            self.joint_positions.append(pos)
+
         print(f"Initialized arm with positions: {self.joint_positions}")
 
     def arm_default_change(self):

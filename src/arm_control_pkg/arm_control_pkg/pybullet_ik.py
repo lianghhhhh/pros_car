@@ -25,27 +25,80 @@ from scipy.spatial.transform import Rotation as R
 
 
 class PybulletRobotController:
-    def __init__(
-        self,
-        arm_params,
-    ):
+    def __init__(self, arm_params, arm_angle_control_node):
         self.arm_params = arm_params.get_arm_params()
+        self.arm_angle_control_node = arm_angle_control_node
         # self.robot_type = "ur5"
         robot_description_path = get_package_share_directory("robot_description")
         self.urdf_path = os.path.join(robot_description_path, "urdf", "target.urdf")
         self.robot_id = None
         self.num_joints = None
-        self.controllable_joints = self.arm_params["pybullet"]["controllable_joints"]
-        self.end_eff_index = self.arm_params["pybullet"]["end_eff_index"]
+        self.controllable_joints = int(
+            self.arm_params["pybullet"]["controllable_joints"]
+        )
+        self.end_eff_index = int(self.arm_params["pybullet"]["end_eff_index"])
         self.time_step = float(self.arm_params["pybullet"]["time_step"])
         self.previous_ee_position = None
-        self.initial_height = self.arm_params["pybullet"]["initial_height"]
+        self.initial_height = float(self.arm_params["pybullet"]["initial_height"])
         self.createWorld(
             GUI=self.arm_params["pybullet"]["gui"],
             view_world=self.arm_params["pybullet"]["view_world"],
         )
 
+        # synchronize the robot with the initial position
+        self.set_initial_joint_positions()
+
+    def getJointStates(self):
+        joint_states = p.getJointStates(self.robot_id, self.controllable_joints)
+        joint_positions = [state[0] for state in joint_states]
+        joint_velocities = [state[1] for state in joint_states]
+        joint_torques = [state[3] for state in joint_states]
+        return joint_positions, joint_velocities, joint_torques
+
+    def move_end_effector_laterally(self, distance=0.1):
+        """
+        根據末端執行器目前旋轉姿態，沿其「右手方向（local-side）」平移一定距離。
+
+        Args:
+            distance (float): 要平移的距離，正值向右，負值向左。
+        """
+        # Step 1: 取得當前末端執行器位置與姿態
+        ee_state = p.getLinkState(self.robot_id, self.end_eff_index)
+        position = np.array(ee_state[0])  # 世界座標
+        orientation = ee_state[1]  # 四元數 (x, y, z, w)
+
+        # Step 2: 四元數 → 旋轉矩陣
+        rotation_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+
+        # Step 3: 抓出旋轉矩陣的「右手方向」單位向量
+        right_direction = rotation_matrix[:, 1]  # 通常 local-Y 是側邊 (右手) 方向
+
+        # Step 4: 根據方向向量計算新的目標位置
+        target_position = position + right_direction * distance
+
+        # Step 5: 傳入原姿態，保持手的朝向不變
+        target_pose = list(target_position) + list(
+            p.getEulerFromQuaternion(orientation)
+        )
+        joint_angles = self.solveInversePositionKinematics(target_pose)
+
+        if joint_angles:
+            print("計算出的關節角度:", joint_angles)
+            return joint_angles
+        else:
+            print("無法計算可行的 IK 解。")
+
     def generateInterpolatedTrajectory(self, target_position, steps=50):
+        """
+        Generate joint angle trajectory based on target position.
+
+        Args:
+            target_position (list or tuple): A [x, y, z] world coordinate of length 3.
+            steps (int): Number of interpolation steps, default is 50.
+
+        Returns:
+            list: Joint angles (in angle) corresponding to each interpolation point.
+        """
         current_position = self.solveForwardPositonKinematics(self.getJointStates()[0])[
             0:3
         ]
@@ -70,9 +123,6 @@ class PybulletRobotController:
                 joint_angles_in_radians.append(
                     joint_angles[: len(self.controllable_joints)]
                 )
-
-                # self.setJointPosition(joint_angles[:len(self.controllable_joints)])
-                time.sleep(0.1)  # 加入延遲觀察
             else:
                 print("無法找到合適的解。")
                 break
@@ -106,6 +156,18 @@ class PybulletRobotController:
         # self.markEndEffectorPath()
         return joint_angles
 
+    def set_initial_joint_positions(self):
+        """從配置中讀取初始關節角度並設置"""
+        print("設置初始關節角度...")
+
+        # 轉換為弧度
+        initial_positions_deg = self.arm_angle_control_node.get_arm_angles()
+        print(f"初始關節角度 (角度): {initial_positions_deg}")
+        initial_positions_rad = [math.radians(angle) for angle in initial_positions_deg]
+
+        # 設置關節位置
+        self.setJointPosition(initial_positions_rad)
+
     # function for setting joint positions of robot in pybullet
     def setJointPosition(self, position, kp=1.0, kv=1.0):
         # print('Joint position controller')
@@ -121,6 +183,28 @@ class PybulletRobotController:
         )
         for _ in range(100):  # to settle the robot to its position
             p.stepSimulation()
+
+    def markTarget(self, target_position):
+        # 使用紅色標記顯示目標位置
+        line_length = 0.1  # 調整標記大小
+        p.addUserDebugLine(
+            [target_position[0] - line_length, target_position[1], target_position[2]],
+            [target_position[0] + line_length, target_position[1], target_position[2]],
+            [1, 0, 0],  # 紅色
+            lineWidth=3,
+        )
+        p.addUserDebugLine(
+            [target_position[0], target_position[1] - line_length, target_position[2]],
+            [target_position[0], target_position[1] + line_length, target_position[2]],
+            [1, 0, 0],
+            lineWidth=3,
+        )
+        p.addUserDebugLine(
+            [target_position[0], target_position[1], target_position[2] - line_length],
+            [target_position[0], target_position[1], target_position[2] + line_length],
+            [1, 0, 0],
+            lineWidth=3,
+        )
 
     def solveForwardPositonKinematics(self, joint_pos):
         # get end-effector link state

@@ -78,9 +78,13 @@ class ArmActionServer(Node):
         """
         if mode == "wave":
             return self.arm_auto_controller.arm_wave
+        elif mode == "arm_ik_move":
+            return self.arm_auto_controller.arm_ik_move
         elif mode == "test":
             return self.arm_auto_controller.test
-        return None
+        else:
+            print("no mode")
+            return None
 
     def _check_and_handle_cancel(self, goal_handle, result):
         """
