@@ -15,9 +15,12 @@ class ArmAutoController:
         # t = self.pybullet_robot_controller.move_end_effector_laterally()
         # print(t[0:5])
         # self.pybullet_robot_controller.setJointPosition(position=t[0:5])
-        t = self.pybullet_robot_controller.markPointInFrontOfEndEffector()
+        t = self.pybullet_robot_controller.offset_from_end_effector(
+            y_offset=0.1, z_offset=0.1
+        )
         print(t[0:5])
         self.pybullet_robot_controller.setJointPosition(position=t[0:5])
+        self.pybullet_robot_controller.draw_end_effector_axes()
         return ArmGoal.Result(success=True, message="success")
 
     def test(self):

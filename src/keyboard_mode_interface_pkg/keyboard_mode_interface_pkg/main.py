@@ -29,7 +29,12 @@ class MenuApp:
                 "3": None,
                 "4": None,
             },
-            "Automatic Arm Mode": {"catch": None, "wave": None},  # 沒有子選單
+            "Automatic Arm Mode": {
+                "catch": None,
+                "wave": None,
+                "arm_ik_move": None,
+                "test": None,
+            },
             "Manual Crane Control": {
                 "Lift": None,
                 "Lower": None,

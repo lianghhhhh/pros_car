@@ -51,82 +51,138 @@ class PybulletRobotController:
 
     def markPointInFrontOfEndEffector(self, distance=0.3, color=[0, 1, 1]):
         """
-        沿著 end-effector 的 local X 軸（前方）延伸指定距離，並在該處畫一個十字標記。
-
-        Args:
-            distance (float): 沿 local X 軸延伸的距離（單位：公尺）
-            color (list): 標記顏色，預設為青色 [0, 1, 1]
+        畫在末端執行器前方一個點（會自動刪除舊的點）。
         """
-        # 取得末端執行器的狀態
+        # 初始化 ID 容器
+        if not hasattr(self, "front_marker_ids"):
+            self.front_marker_ids = []
+
+        # 刪掉上一個標記
+        for mid in self.front_marker_ids:
+            p.removeUserDebugItem(mid)
+        self.front_marker_ids.clear()
+
+        # 取得 EE 姿態與方向
         ee_state = p.getLinkState(self.robot_id, self.end_eff_index)
-        position = np.array(ee_state[0])  # 世界座標系下的位置
-        orientation = ee_state[1]  # 四元數
-
-        # 將姿態轉換成旋轉矩陣
-        rotation_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
-
-        # local X 軸（前方）方向向量
-        forward_direction = rotation_matrix[:, 0]
-
-        # 計算標記點世界座標
+        position = np.array(ee_state[0])
+        orientation = ee_state[1]
+        rot_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+        forward_direction = rot_matrix[:, 0]
         target_point = position + forward_direction * distance
 
-        # 畫十字標記
+        # 畫十字線
         line_length = 0.05
-        p.addUserDebugLine(
-            target_point - np.array([line_length, 0, 0]),
-            target_point + np.array([line_length, 0, 0]),
-            color,
-            lineWidth=2,
+        self.front_marker_ids.append(
+            p.addUserDebugLine(
+                target_point - np.array([line_length, 0, 0]),
+                target_point + np.array([line_length, 0, 0]),
+                color,
+                lineWidth=2,
+            )
         )
-        p.addUserDebugLine(
-            target_point - np.array([0, line_length, 0]),
-            target_point + np.array([0, line_length, 0]),
-            color,
-            lineWidth=2,
+        self.front_marker_ids.append(
+            p.addUserDebugLine(
+                target_point - np.array([0, line_length, 0]),
+                target_point + np.array([0, line_length, 0]),
+                color,
+                lineWidth=2,
+            )
         )
-        p.addUserDebugLine(
-            target_point - np.array([0, 0, line_length]),
-            target_point + np.array([0, 0, line_length]),
-            color,
-            lineWidth=2,
+        self.front_marker_ids.append(
+            p.addUserDebugLine(
+                target_point - np.array([0, 0, line_length]),
+                target_point + np.array([0, 0, line_length]),
+                color,
+                lineWidth=2,
+            )
         )
 
     def draw_end_effector_axes(self, axis_length=0.2):
         """
-        在 end-effector 當前位置畫出 local XYZ 軸（紅: X, 綠: Y, 藍: Z）
-
-        Args:
-            axis_length (float): 每個軸的長度
+        畫出 end-effector 當前的 local XYZ 軸（紅: X, 綠: Y, 藍: Z），
+        並刪除上一次畫的指標，避免殘留。
         """
-        print("end : " + str(self.end_eff_index))
+        # 初始化儲存線 ID 的屬性
+        if not hasattr(self, "ee_axis_lines"):
+            self.ee_axis_lines = []
+
+        # 移除上一次畫的指標
+        for line_id in self.ee_axis_lines:
+            p.removeUserDebugItem(line_id)
+        self.ee_axis_lines.clear()
+
         ee_state = p.getLinkState(self.robot_id, self.end_eff_index)
         position = np.array(ee_state[0])
         orientation = ee_state[1]
 
         # 四元數轉旋轉矩陣
         rot_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+        x_axis = rot_matrix[:, 0]
+        y_axis = rot_matrix[:, 1]
+        z_axis = rot_matrix[:, 2]
 
-        # 分別取出 local X, Y, Z 三軸方向向量
-        x_axis = rot_matrix[:, 0]  # local X
-        y_axis = rot_matrix[:, 1]  # local Y
-        z_axis = rot_matrix[:, 2]  # local Z
-
-        # 終點位置
+        # 終點
         x_end = position + x_axis * axis_length
         y_end = position + y_axis * axis_length
         z_end = position + z_axis * axis_length
 
-        # 畫三軸
-        p.addUserDebugLine(
-            position.tolist(), x_end.tolist(), [1, 0, 0], lineWidth=3
-        )  # X: 紅
-        p.addUserDebugLine(
-            position.tolist(), y_end.tolist(), [0, 1, 0], lineWidth=3
-        )  # Y: 綠
-        p.addUserDebugLine(
-            position.tolist(), z_end.tolist(), [0, 0, 1], lineWidth=3
-        )  # Z: 藍
+        # 畫線並記錄 ID
+        self.ee_axis_lines.append(
+            p.addUserDebugLine(
+                position.tolist(), x_end.tolist(), [1, 0, 0], lineWidth=3
+            )
+        )
+        self.ee_axis_lines.append(
+            p.addUserDebugLine(
+                position.tolist(), y_end.tolist(), [0, 1, 0], lineWidth=3
+            )
+        )
+        self.ee_axis_lines.append(
+            p.addUserDebugLine(
+                position.tolist(), z_end.tolist(), [0, 0, 1], lineWidth=3
+            )
+        )
+
+    def offset_from_end_effector(self, y_offset, z_offset, mark_color=[1, 0, 1]):
+        """
+        基於 end-effector 當前姿態，將指定的 local Y/Z 軸偏差轉換為世界座標位置，
+        並用 IK 解出對應的關節角度（弧度），同時標記該點。
+
+        Args:
+            y_offset (float): 右手座標系中 Y 軸的偏差量（向左為正）
+            z_offset (float): 右手座標系中 Z 軸的偏差量（向上為正）
+            mark_color (list): 用於標記目標位置的顏色，預設為紫色 [1, 0, 1]
+
+        Returns:
+            list: 可行的 IK 解（弧度），若無解則回傳 None
+        """
+        # Step 1: 取得末端位置與朝向
+        ee_state = p.getLinkState(self.robot_id, self.end_eff_index)
+        position = np.array(ee_state[0])  # 世界座標
+        orientation = ee_state[1]  # 四元數
+
+        # Step 2: 四元數 → 旋轉矩陣
+        rot_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+
+        # Step 3: 抓出 local Y/Z 軸方向向量
+        local_y_axis = rot_matrix[:, 1]
+        local_z_axis = rot_matrix[:, 2]
+
+        # Step 4: 偏移計算
+        offset_vector = y_offset * local_y_axis + z_offset * local_z_axis
+        new_position = position + offset_vector
+
+        # Step 5: 標記該位置
+        self.markTarget(new_position, color=mark_color)
+
+        # Step 6: 解 IK
+        ik_solution = self.solveInversePositionKinematics(list(new_position))
+
+        if ik_solution:
+            return ik_solution[: len(self.controllable_joints)]
+        else:
+            print("❌ 無法計算偏移後的 IK 解")
+            return None
 
     def getJointStates(self):
         joint_states = p.getJointStates(self.robot_id, self.controllable_joints)
@@ -264,26 +320,72 @@ class PybulletRobotController:
         for _ in range(100):  # to settle the robot to its position
             p.stepSimulation()
 
-    def markTarget(self, target_position):
-        # 使用紅色標記顯示目標位置
-        line_length = 0.1  # 調整標記大小
-        p.addUserDebugLine(
-            [target_position[0] - line_length, target_position[1], target_position[2]],
-            [target_position[0] + line_length, target_position[1], target_position[2]],
-            [1, 0, 0],  # 紅色
-            lineWidth=3,
+    def markTarget(self, target_position, color=[1, 0, 0]):
+        """
+        在給定位置畫紅色十字標記（或指定顏色），會先清除舊的標記。
+
+        Args:
+            target_position (list or np.array): 3D 目標世界座標
+            color (list): 標記顏色，預設紅色 [1, 0, 0]
+        """
+        # 初始化 ID list
+        if not hasattr(self, "target_marker_ids"):
+            self.target_marker_ids = []
+
+        # 清除上次畫的線
+        for line_id in self.target_marker_ids:
+            p.removeUserDebugItem(line_id)
+        self.target_marker_ids.clear()
+
+        # 畫新的十字線
+        line_length = 0.1
+        self.target_marker_ids.append(
+            p.addUserDebugLine(
+                [
+                    target_position[0] - line_length,
+                    target_position[1],
+                    target_position[2],
+                ],
+                [
+                    target_position[0] + line_length,
+                    target_position[1],
+                    target_position[2],
+                ],
+                color,
+                lineWidth=3,
+            )
         )
-        p.addUserDebugLine(
-            [target_position[0], target_position[1] - line_length, target_position[2]],
-            [target_position[0], target_position[1] + line_length, target_position[2]],
-            [1, 0, 0],
-            lineWidth=3,
+        self.target_marker_ids.append(
+            p.addUserDebugLine(
+                [
+                    target_position[0],
+                    target_position[1] - line_length,
+                    target_position[2],
+                ],
+                [
+                    target_position[0],
+                    target_position[1] + line_length,
+                    target_position[2],
+                ],
+                color,
+                lineWidth=3,
+            )
         )
-        p.addUserDebugLine(
-            [target_position[0], target_position[1], target_position[2] - line_length],
-            [target_position[0], target_position[1], target_position[2] + line_length],
-            [1, 0, 0],
-            lineWidth=3,
+        self.target_marker_ids.append(
+            p.addUserDebugLine(
+                [
+                    target_position[0],
+                    target_position[1],
+                    target_position[2] - line_length,
+                ],
+                [
+                    target_position[0],
+                    target_position[1],
+                    target_position[2] + line_length,
+                ],
+                color,
+                lineWidth=3,
+            )
         )
 
     def solveForwardPositonKinematics(self, joint_pos):
@@ -338,4 +440,5 @@ class PybulletRobotController:
         if view_world:
             while True:
                 p.stepSimulation()
+                controller.markPointInFrontOfEndEffector(distance=0.3)
                 time.sleep(self.time_step)

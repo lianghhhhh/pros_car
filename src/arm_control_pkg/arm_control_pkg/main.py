@@ -5,6 +5,7 @@ from arm_control_pkg.load_params import LoadParams
 from arm_control_pkg.arm_angle_control import ArmAngleControl
 from arm_control_pkg.arm_auto_controller import ArmAutoController
 from arm_control_pkg.arm_action_server import ArmActionServer
+from arm_control_pkg.pybullet_ik import PybulletRobotController
 from rclpy.executors import MultiThreadedExecutor
 
 
@@ -15,10 +16,14 @@ def main(args=None):
     arm_commute_node = ArmCummuteNode(
         arm_params=load_params, arm_angle_control=arm_agnle_control
     )
-    arm_auto_controller = ArmAutoController(
+    pybulletRobotController = PybulletRobotController(
+        arm_params=load_params,
         arm_angle_control_node=arm_agnle_control,
+    )
+    arm_auto_controller = ArmAutoController(
         arm_params=load_params,
         arm_commute_node=arm_commute_node,
+        pybulletRobotController=pybulletRobotController,
     )
     arm_action_server = ArmActionServer(
         arm_commute_node=arm_commute_node, arm_auto_controller=arm_auto_controller
