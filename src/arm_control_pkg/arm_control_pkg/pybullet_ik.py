@@ -48,6 +48,7 @@ class PybulletRobotController:
         # synchronize the robot with the initial position
         self.set_initial_joint_positions()
         self.draw_end_effector_axes()
+        self.mimic_pairs = {}  # {主控_joint_index: 被控_joint_index}
 
     def markPointInFrontOfEndEffector(self, distance=0.3, color=[0, 1, 1]):
         """
@@ -424,21 +425,28 @@ class PybulletRobotController:
         )
 
         self.num_joints = p.getNumJoints(self.robot_id)  # Joints
+        # 只保留 Revolute 和 Prismatic 关节
+        self.controllable_joints = []
+        # 假設你有一個要忽略的 joint name list
+        mimic_joint_names = ["Revolute 6"]
+
+        for jid in range(self.num_joints):
+            info = p.getJointInfo(self.robot_id, jid)
+            joint_type = info[2]
+            joint_name = info[1].decode("utf-8")
+            if joint_type in (p.JOINT_REVOLUTE, p.JOINT_PRISMATIC):
+                if joint_name not in mimic_joint_names:
+                    self.controllable_joints.append(jid)
+                    link_name = info[12].decode("utf-8")
+                    print(f"Joint index {jid} controls link: {link_name}")
+
         print("#Joints read from pybullet:", self.num_joints)
-        if self.controllable_joints is None:
-            self.controllable_joints = list(range(1, self.num_joints - 1))
         print("#Controllable Joints:", self.controllable_joints)
         if self.end_eff_index is None:
             self.end_eff_index = self.controllable_joints[-1]
         print("#End-effector:", self.end_eff_index)
-        self.num_joints = p.getNumJoints(self.robot_id)
-        # print(f"總關節數量: {self.num_joints}")
-        self.controllable_joints = list(range(1, self.num_joints - 1))
-        # print(f"可控制的關節索引: {self.controllable_joints}")
-        # print(f"需要提供的初始位置數量: {len(self.controllable_joints)}")
 
         if view_world:
             while True:
                 p.stepSimulation()
-                controller.markPointInFrontOfEndEffector(distance=0.3)
                 time.sleep(self.time_step)
