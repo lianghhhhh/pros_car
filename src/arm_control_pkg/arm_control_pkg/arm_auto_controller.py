@@ -20,7 +20,7 @@ class ArmAutoController:
         )
         print(t[0:5])
         self.pybullet_robot_controller.setJointPosition(position=t[0:5])
-        self.pybullet_robot_controller.draw_end_effector_axes()
+        self.pybullet_robot_controller.draw_link_axes(link_name="camera_1")
         return ArmGoal.Result(success=True, message="success")
 
     def test(self):
@@ -30,5 +30,5 @@ class ArmAutoController:
         for i in t:
             self.pybullet_robot_controller.setJointPosition(position=i)
             time.sleep(0.1)
-        self.pybullet_robot_controller.draw_end_effector_axes()
+        self.pybullet_robot_controller.draw_link_axes(link_name="camera_1")
         return ArmGoal.Result(success=True, message="success")

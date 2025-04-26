@@ -47,7 +47,7 @@ class PybulletRobotController:
 
         # synchronize the robot with the initial position
         self.set_initial_joint_positions()
-        self.draw_end_effector_axes()
+        self.draw_link_axes(link_name="camera_1")
         self.mimic_pairs = {}  # {主控_joint_index: 被控_joint_index}
 
     def markPointInFrontOfEndEffector(self, distance=0.3, color=[0, 1, 1]):
@@ -98,49 +98,69 @@ class PybulletRobotController:
             )
         )
 
-    def draw_end_effector_axes(self, axis_length=0.2):
+    def draw_link_axes(self, link_name=None, axis_length=0.2):
         """
-        畫出 end-effector 當前的 local XYZ 軸（紅: X, 綠: Y, 藍: Z），
-        並刪除上一次畫的指標，避免殘留。
+        在指定的 link（默认末端执行器）的位置画出它的 local XYZ 轴（红: X, 绿: Y, 蓝: Z），
+        并删除上一次画的指示，避免残留，同时用一个小圆点标出 link 的位置。
+
+        Args:
+            link_name (str or None): 要显示的 link 名称；若为 None，则用 end_eff_index。
+            axis_length (float): 每个轴的长度
         """
-        # 初始化儲存線 ID 的屬性
-        if not hasattr(self, "ee_axis_lines"):
-            self.ee_axis_lines = []
+        # 先删除上次的线 & 点
+        if not hasattr(self, "link_axes_lines"):
+            self.link_axes_lines = []
+        for lid in self.link_axes_lines:
+            p.removeUserDebugItem(lid)
+        self.link_axes_lines.clear()
 
-        # 移除上一次畫的指標
-        for line_id in self.ee_axis_lines:
-            p.removeUserDebugItem(line_id)
-        self.ee_axis_lines.clear()
+        # 找到要绘制的 link index
+        if link_name is None:
+            link_idx = self.end_eff_index
+        else:
+            link_idx = None
+            for jid in range(self.num_joints):
+                info = p.getJointInfo(self.robot_id, jid)
+                if info[12].decode("utf-8") == link_name:
+                    link_idx = jid
+                    break
+            if link_idx is None:
+                self.get_logger().warn(
+                    f"Link '{link_name}' not found, using end-effector."
+                )
+                link_idx = self.end_eff_index
 
-        ee_state = p.getLinkState(self.robot_id, self.end_eff_index)
-        position = np.array(ee_state[0])
-        orientation = ee_state[1]
+        # 取得该 link 的 world pose
+        ls = p.getLinkState(self.robot_id, link_idx)
+        pos, orn = np.array(ls[0]), ls[1]
 
-        # 四元數轉旋轉矩陣
-        rot_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
-        x_axis = rot_matrix[:, 0]
-        y_axis = rot_matrix[:, 1]
-        z_axis = rot_matrix[:, 2]
+        # 转 quaternion→rotation matrix
+        R_mat = np.array(p.getMatrixFromQuaternion(orn)).reshape(3, 3)
+        x_axis, y_axis, z_axis = R_mat[:, 0], R_mat[:, 1], R_mat[:, 2]
 
-        # 終點
-        x_end = position + x_axis * axis_length
-        y_end = position + y_axis * axis_length
-        z_end = position + z_axis * axis_length
+        # 算各轴终点
+        x_end = pos + x_axis * axis_length
+        y_end = pos + y_axis * axis_length
+        z_end = pos + z_axis * axis_length
 
-        # 畫線並記錄 ID
-        self.ee_axis_lines.append(
-            p.addUserDebugLine(
-                position.tolist(), x_end.tolist(), [1, 0, 0], lineWidth=3
-            )
+        # 画三条线并保存 id
+        self.link_axes_lines.append(
+            p.addUserDebugLine(pos.tolist(), x_end.tolist(), [1, 0, 0], lineWidth=3)
         )
-        self.ee_axis_lines.append(
-            p.addUserDebugLine(
-                position.tolist(), y_end.tolist(), [0, 1, 0], lineWidth=3
-            )
+        self.link_axes_lines.append(
+            p.addUserDebugLine(pos.tolist(), y_end.tolist(), [0, 1, 0], lineWidth=3)
         )
-        self.ee_axis_lines.append(
-            p.addUserDebugLine(
-                position.tolist(), z_end.tolist(), [0, 0, 1], lineWidth=3
+        self.link_axes_lines.append(
+            p.addUserDebugLine(pos.tolist(), z_end.tolist(), [0, 0, 1], lineWidth=3)
+        )
+
+        # --- 新增：在 pos 处画一个小“球”点 ---
+        # addUserDebugPoints(points, colors, pointSize)
+        self.link_axes_lines.append(
+            p.addUserDebugPoints(
+                [pos.tolist()],  # 位置列表
+                [[1, 1, 0]],  # 颜色列表：黄色
+                pointSize=30,  # 点大小，调大一些看着像小球
             )
         )
 
