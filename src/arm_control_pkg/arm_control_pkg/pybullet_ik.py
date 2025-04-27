@@ -13,7 +13,6 @@
 # 4. time_Step: time step for simulation
 
 import pybullet as p
-import pybullet_data
 import numpy as np
 import time
 import random
@@ -23,6 +22,7 @@ import xml.etree.ElementTree as ET
 import math
 from scipy.spatial.transform import Rotation as R
 from transforms3d.quaternions import quat2mat
+import pybullet_data
 
 
 class PybulletRobotController:
@@ -304,15 +304,16 @@ class PybulletRobotController:
 
     def calculate_ee_relative_target_positions(self, distance):
         """
-        計算相對於當前末端執行器 **局部座標系** 的上、下、左、右目標世界座標。
+        計算相對於當前末端執行器 **局部座標系** 的上、下、左、右、後退目標世界座標。
 
         Args:
             distance (float): 要在末端執行器局部座標系的各個方向上移動的距離（單位：公尺）。
                               - 上/下: 沿局部 Z 軸
                               - 左/右: 沿局部 Y 軸 (假設 Y 軸指向左側)
+                              - 後退: 沿局部 X 軸的反方向 (假設 X 軸指向前方)
 
         Returns:
-            dict: 一個包含四個目標世界座標的字典，鍵為 'up', 'down', 'left', 'right'。
+            dict: 一個包含五個目標世界座標的字典，鍵為 'up', 'down', 'left', 'right', 'backward'。
                   每個值是一個包含 [x, y, z] 座標的列表。
                   如果無法獲取末端執行器狀態，則返回 None。
         """
@@ -342,7 +343,7 @@ class PybulletRobotController:
         #   - X 軸通常是向前 (索引 0)
         #   - Y 軸通常是向左 (索引 1)
         #   - Z 軸通常是向上 (索引 2)
-        local_x_axis = rotation_matrix[:, 0]
+        local_x_axis = rotation_matrix[:, 0]  # Assuming X is forward
         local_y_axis = rotation_matrix[:, 1]  # Assuming Y is left
         local_z_axis = rotation_matrix[:, 2]  # Assuming Z is up
 
@@ -352,9 +353,11 @@ class PybulletRobotController:
             "down": (current_position - local_z_axis * distance).tolist(),
             "left": (current_position + local_y_axis * distance).tolist(),
             "right": (current_position - local_y_axis * distance).tolist(),
-            # 如果需要前後移動，可以添加:
+            "backward": (
+                current_position - local_x_axis * distance
+            ).tolist(),  # Add backward movement
+            # 如果需要向前移動，可以添加:
             # 'forward': (current_position + local_x_axis * distance).tolist(),
-            # 'backward':(current_position - local_x_axis * distance).tolist(),
         }
 
         print(
@@ -366,13 +369,13 @@ class PybulletRobotController:
         return target_positions
 
     def move_ee_relative_example(
-        self, direction, distance, visualize=False, execute_move=False
+        self, direction, distance, visualize=True, execute_move=False
     ):
         """
         計算相對於末端執行器的局部目標世界座標，可選地視覺化並執行移動。
 
         Args:
-            direction (str): 'up', 'down', 'left', or 'right'.
+            direction (str): 'up', 'down', 'left', 'right', or 'backward'.
             distance (float): 移動距離。
             visualize (bool): 是否在 PyBullet 中標記計算出的目標點。預設為 True。
             execute_move (bool): 是否計算 IK 並嘗試移動手臂到目標位置。預設為 False。
