@@ -50,6 +50,7 @@ class PybulletRobotController:
         self.set_initial_joint_positions()
         # self.draw_link_axes(link_name="camera_1")
         self.mimic_pairs = {}  # {主控_joint_index: 被控_joint_index}
+        self.marker_ids = []
 
     def markPointInFrontOfEndEffector(self, distance=0.3, color=[0, 1, 1]):
         """
@@ -290,119 +291,69 @@ class PybulletRobotController:
     def calculate_imu_extrinsics(
         self, imu_world_quaternion, link_name, visualize=False, axis_length=0.1
     ):
-        """
-        根據 IMU 在世界座標系下的姿態(四元數)和附著的 link 名稱，計算世界到 IMU 的外參變換矩陣。
-        假設 IMU 的坐標系為 X 軸朝前, Y 軸朝左, Z 軸朝上。
-        此函數會額外將 IMU 坐標系繞其 Z 軸旋轉 180 度。
-        使用 scipy 處理四元數。
-
-        Args:
-            imu_world_quaternion (list or np.array): IMU 在世界座標系下的姿態四元數 [x, y, z, w]。
-            link_name (str): IMU 附著的 link 的名稱 (用於計算外參，但視覺化在原點)。
-            visualize (bool): 是否在 PyBullet 的世界原點視覺化 *旋轉後* 的 IMU XYZ 坐標軸 (紅綠藍)。
-            axis_length (float): 視覺化時坐標軸的長度。
-
-        Returns:
-            np.ndarray or None: 4x4 的世界座標系到 *旋轉後* IMU 坐標系的外參變換矩陣 (T_world_to_imu_rotated)。
-                                如果 link 不存在則返回 None。
-        """
-        # --- 1. 找到 Link 的 Index (仍然需要用於計算外參) ---
-        link_idx = None
-        try:
-            for jid in range(self.num_joints):
-                info = p.getJointInfo(self.robot_id, jid)
-                if info[12].decode("utf-8") == link_name:
-                    link_idx = jid
-                    break
-            if link_idx is None:
-                print(f"錯誤: Link '{link_name}' 在機器人模型中找不到。")
-                return None
-        except Exception as e:
-            print(f"尋找 Link '{link_name}' 時發生錯誤: {e}")
-            return None
-
-        # --- 2. 獲取 Link 在世界座標系下的位置 (用於計算外參) ---
-        try:
-            link_state = p.getLinkState(
-                self.robot_id, link_idx, computeForwardKinematics=True
-            )
-            link_origin_world = np.array(link_state[4])  # Link的原點，用於外參計算
-        except Exception as e:
-            print(f"獲取 Link '{link_name}' 狀態時發生錯誤: {e}")
-            return None
-
-        # --- 3. 處理 IMU 姿態並應用 180 度 Z 軸旋轉 ---
-        try:
-            imu_rotation_scipy = R.from_quat(imu_world_quaternion)
-            R_world_imu_original = imu_rotation_scipy.as_matrix()
-            R_z_180 = np.array([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
-            # R_world_imu: 從旋轉後的IMU坐標系到世界坐標系的旋轉
-            R_world_imu = R_world_imu_original @ R_z_180
-        except Exception as e:
-            print(f"處理 IMU 四元數或旋轉時發生錯誤: {e}")
-            return None
-
-        # --- 4. 計算外參矩陣 (World to Rotated IMU, 相對於 Link 位置) ---
-        R_imu_world = R_world_imu.T
-        # 注意：平移部分仍然是相對於 link 的原點 link_origin_world
-        t_imu_world = -R_imu_world @ link_origin_world
-
-        T_world_to_imu = np.identity(4)
-        T_world_to_imu[0:3, 0:3] = R_imu_world
-        T_world_to_imu[0:3, 3] = t_imu_world
-
-        # --- 5. 在世界原點視覺化 *旋轉後* 的 IMU 坐標軸 (可選) ---
-        # 初始化或清除之前的視覺化線條
-        if not hasattr(self, "imu_axes_lines"):
-            self.imu_axes_lines = []
-        for line_id in self.imu_axes_lines:
+        # --- 清掉舊的 markers ---
+        for mid in self.marker_ids:
             try:
-                p.removeUserDebugItem(line_id)
+                p.removeUserDebugItem(mid)
             except:
                 pass
-        self.imu_axes_lines.clear()
+        self.marker_ids.clear()
 
+        # --- 找到 link index & 世界座標 ---
+        link_idx = None
+        for jid in range(self.num_joints):
+            if p.getJointInfo(self.robot_id, jid)[12].decode() == link_name:
+                link_idx = jid
+                break
+        if link_idx is None:
+            print(f"找不到 link '{link_name}'")
+            return None
+
+        ls = p.getLinkState(self.robot_id, link_idx, computeForwardKinematics=True)
+        link_origin_world = np.array(ls[4])
+        link_orn = ls[5]  # 四元數 (x,y,z,w)
+
+        # --- 拆 yaw from link orientation ---
+        rot_link = R.from_quat(link_orn)  # scipy expects [x,y,z,w]
+        roll_l, pitch_l, yaw_l = rot_link.as_euler("xyz", False)
+
+        # --- 拆 roll/pitch from IMU orientation ---
+        rot_imu = R.from_quat(imu_world_quaternion)
+        roll_i, pitch_i, yaw_i = rot_imu.as_euler("xyz", False)
+
+        # --- fuse: 用 imu 的 roll/pitch + link 的 yaw ---
+        fused = R.from_euler("xyz", [roll_i, pitch_i, yaw_l], False)
+        R_world_imu_fused = fused.as_matrix()  # 從 IMU→世界
+
+        # --- 外參矩陣 world→imu_fused ---
+        R_imu_world = R_world_imu_fused.T
+        t_imu_world = -R_imu_world @ link_origin_world
+        T = np.eye(4)
+        T[:3, :3] = R_imu_world
+        T[:3, 3] = t_imu_world
+
+        # --- 視覺化 (在 link_origin_world 處) ---
         if visualize:
-            # 定義視覺化的原點 (稍微抬高)
-            viz_origin = np.array([0.0, 0.0, 0.1])
+            # 算三軸
+            x_ax = R_world_imu_fused[:, 0] * axis_length
+            y_ax = R_world_imu_fused[:, 1] * axis_length
+            z_ax = R_world_imu_fused[:, 2] * axis_length
 
-            # 使用 R_world_imu 矩陣的列向量來表示新 IMU 坐標軸在世界中的方向
-            x_axis_world = R_world_imu[:, 0]
-            y_axis_world = R_world_imu[:, 1]
-            z_axis_world = R_world_imu[:, 2]
-
-            # 計算各軸的終點 (從 viz_origin 開始)
-            x_end_world = viz_origin - x_axis_world * axis_length
-            y_end_world = viz_origin + y_axis_world * axis_length
-            z_end_world = viz_origin + z_axis_world * axis_length
-
-            # 使用 PyBullet 繪製調試線條 (從 viz_origin 開始)
-            self.imu_axes_lines.append(
-                p.addUserDebugLine(
-                    viz_origin.tolist(),
-                    x_end_world.tolist(),
-                    [1, 0, 0],
-                    lineWidth=3,  # X=Red
-                )
+            o = link_origin_world.tolist()
+            # 紅 X
+            self.marker_ids.append(
+                p.addUserDebugLine(o, (link_origin_world + x_ax).tolist(), [1, 0, 0], 4)
             )
-            self.imu_axes_lines.append(
-                p.addUserDebugLine(
-                    viz_origin.tolist(),
-                    y_end_world.tolist(),
-                    [0, 1, 0],
-                    lineWidth=3,  # Y=Green
-                )
+            # 綠 Y
+            self.marker_ids.append(
+                p.addUserDebugLine(o, (link_origin_world + y_ax).tolist(), [0, 1, 0], 4)
             )
-            self.imu_axes_lines.append(
-                p.addUserDebugLine(
-                    viz_origin.tolist(),
-                    z_end_world.tolist(),
-                    [0, 0, 1],
-                    lineWidth=3,  # Z=Blue
-                )
+            # 藍 Z
+            self.marker_ids.append(
+                p.addUserDebugLine(o, (link_origin_world + z_ax).tolist(), [0, 0, 1], 4)
             )
 
-        return T_world_to_imu  # 返回世界到旋轉後IMU的外參 (相對於link)
+        return T
 
     def solveInversePositionKinematics(self, end_eff_pose):
         """
