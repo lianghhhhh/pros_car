@@ -22,6 +22,7 @@ from ament_index_python.packages import get_package_share_directory
 import xml.etree.ElementTree as ET
 import math
 from scipy.spatial.transform import Rotation as R
+from transforms3d.quaternions import quat2mat
 
 
 class PybulletRobotController:
@@ -291,19 +292,21 @@ class PybulletRobotController:
     ):
         """
         根據 IMU 在世界座標系下的姿態(四元數)和附著的 link 名稱，計算世界到 IMU 的外參變換矩陣。
-        假設 IMU 的坐標系為 X 軸朝前 (同深度相機)，Y 軸朝左，Z 軸朝上。
+        假設 IMU 的坐標系為 X 軸朝前, Y 軸朝左, Z 軸朝上。
+        此函數會額外將 IMU 坐標系繞其 Z 軸旋轉 180 度。
         使用 scipy 處理四元數。
 
         Args:
             imu_world_quaternion (list or np.array): IMU 在世界座標系下的姿態四元數 [x, y, z, w]。
-            link_name (str): IMU 附著的 link 的名稱。
-            visualize (bool): 是否在 PyBullet 中視覺化 IMU 的 XYZ 坐標軸 (紅綠藍)。
+            link_name (str): IMU 附著的 link 的名稱 (用於計算外參，但視覺化在原點)。
+            visualize (bool): 是否在 PyBullet 的世界原點視覺化 *旋轉後* 的 IMU XYZ 坐標軸 (紅綠藍)。
             axis_length (float): 視覺化時坐標軸的長度。
 
         Returns:
-            np.ndarray or None: 4x4 的世界座標系到 IMU 坐標系的外參變換矩陣 (T_world_to_imu)。如果 link 不存在則返回 None。
+            np.ndarray or None: 4x4 的世界座標系到 *旋轉後* IMU 坐標系的外參變換矩陣 (T_world_to_imu_rotated)。
+                                如果 link 不存在則返回 None。
         """
-        # --- 1. 找到 Link 的 Index ---
+        # --- 1. 找到 Link 的 Index (仍然需要用於計算外參) ---
         link_idx = None
         try:
             for jid in range(self.num_joints):
@@ -318,41 +321,37 @@ class PybulletRobotController:
             print(f"尋找 Link '{link_name}' 時發生錯誤: {e}")
             return None
 
-        # --- 2. 獲取 Link 在世界座標系下的位置 (作為 IMU 的原點) ---
+        # --- 2. 獲取 Link 在世界座標系下的位置 (用於計算外參) ---
         try:
-            # 使用 getLinkState 的 worldLinkFramePosition (index 4) 作為原點
             link_state = p.getLinkState(
                 self.robot_id, link_idx, computeForwardKinematics=True
             )
-            imu_origin_world = np.array(link_state[4])
+            link_origin_world = np.array(link_state[4])  # Link的原點，用於外參計算
         except Exception as e:
             print(f"獲取 Link '{link_name}' 狀態時發生錯誤: {e}")
             return None
 
-        # --- 3. 處理 IMU 姿態 (使用 Scipy) ---
+        # --- 3. 處理 IMU 姿態並應用 180 度 Z 軸旋轉 ---
         try:
-            # scipy.spatial.transform.Rotation expects [x, y, z, w]
-            # imu_world_quaternion 代表從 IMU 坐標系到世界坐標系的旋轉
             imu_rotation_scipy = R.from_quat(imu_world_quaternion)
-            # R_world_imu: 將 IMU 坐標系中的向量轉換到世界坐標系
-            R_world_imu = imu_rotation_scipy.as_matrix()
+            R_world_imu_original = imu_rotation_scipy.as_matrix()
+            R_z_180 = np.array([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
+            # R_world_imu: 從旋轉後的IMU坐標系到世界坐標系的旋轉
+            R_world_imu = R_world_imu_original @ R_z_180
         except Exception as e:
-            print(f"處理 IMU 四元數時發生錯誤: {e}")
+            print(f"處理 IMU 四元數或旋轉時發生錯誤: {e}")
             return None
 
-        # --- 4. 計算外參矩陣 (World to IMU) ---
-        # T_world_to_imu = inv(T_imu_to_world)
-        # T_imu_to_world = [[R_world_imu, imu_origin_world], [0, 1]]
-        R_imu_world = R_world_imu.T  # Rotation part of T_world_to_imu
-        t_imu_world = (
-            -R_imu_world @ imu_origin_world
-        )  # Translation part of T_world_to_imu
+        # --- 4. 計算外參矩陣 (World to Rotated IMU, 相對於 Link 位置) ---
+        R_imu_world = R_world_imu.T
+        # 注意：平移部分仍然是相對於 link 的原點 link_origin_world
+        t_imu_world = -R_imu_world @ link_origin_world
 
         T_world_to_imu = np.identity(4)
         T_world_to_imu[0:3, 0:3] = R_imu_world
         T_world_to_imu[0:3, 3] = t_imu_world
 
-        # --- 5. 視覺化 (可選) ---
+        # --- 5. 在世界原點視覺化 *旋轉後* 的 IMU 坐標軸 (可選) ---
         # 初始化或清除之前的視覺化線條
         if not hasattr(self, "imu_axes_lines"):
             self.imu_axes_lines = []
@@ -360,48 +359,50 @@ class PybulletRobotController:
             try:
                 p.removeUserDebugItem(line_id)
             except:
-                pass  # Ignore if item already removed
+                pass
         self.imu_axes_lines.clear()
 
         if visualize:
-            # IMU 的 X, Y, Z 軸在世界座標系中的方向向量
-            # 這些是 R_world_imu 旋轉矩陣的列向量
+            # 定義視覺化的原點 (稍微抬高)
+            viz_origin = np.array([0.0, 0.0, 0.1])
+
+            # 使用 R_world_imu 矩陣的列向量來表示新 IMU 坐標軸在世界中的方向
             x_axis_world = R_world_imu[:, 0]
             y_axis_world = R_world_imu[:, 1]
             z_axis_world = R_world_imu[:, 2]
 
-            # 計算各軸的終點
-            x_end_world = imu_origin_world + x_axis_world * axis_length
-            y_end_world = imu_origin_world + y_axis_world * axis_length
-            z_end_world = imu_origin_world + z_axis_world * axis_length
+            # 計算各軸的終點 (從 viz_origin 開始)
+            x_end_world = viz_origin + x_axis_world * axis_length
+            y_end_world = viz_origin + y_axis_world * axis_length
+            z_end_world = viz_origin + z_axis_world * axis_length
 
-            # 使用 PyBullet 繪製調試線條 (紅=X, 綠=Y, 藍=Z)
+            # 使用 PyBullet 繪製調試線條 (從 viz_origin 開始)
             self.imu_axes_lines.append(
                 p.addUserDebugLine(
-                    imu_origin_world.tolist(),
+                    viz_origin.tolist(),
                     x_end_world.tolist(),
                     [1, 0, 0],
-                    lineWidth=3,
+                    lineWidth=3,  # X=Red
                 )
             )
             self.imu_axes_lines.append(
                 p.addUserDebugLine(
-                    imu_origin_world.tolist(),
+                    viz_origin.tolist(),
                     y_end_world.tolist(),
                     [0, 1, 0],
-                    lineWidth=3,
+                    lineWidth=3,  # Y=Green
                 )
             )
             self.imu_axes_lines.append(
                 p.addUserDebugLine(
-                    imu_origin_world.tolist(),
+                    viz_origin.tolist(),
                     z_end_world.tolist(),
                     [0, 0, 1],
-                    lineWidth=3,
+                    lineWidth=3,  # Z=Blue
                 )
             )
 
-        return T_world_to_imu
+        return T_world_to_imu  # 返回世界到旋轉後IMU的外參 (相對於link)
 
     def solveInversePositionKinematics(self, end_eff_pose):
         """
