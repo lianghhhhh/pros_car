@@ -24,6 +24,7 @@ def main(args=None):
         arm_params=load_params,
         arm_commute_node=arm_commute_node,
         pybulletRobotController=pybulletRobotController,
+        arm_agnle_control=arm_agnle_control,
     )
     arm_action_server = ArmActionServer(
         arm_commute_node=arm_commute_node, arm_auto_controller=arm_auto_controller

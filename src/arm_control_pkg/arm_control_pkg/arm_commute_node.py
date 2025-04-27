@@ -122,9 +122,6 @@ class ArmCummuteNode(Node):
         if label is None:
             # 全部回傳
             return self.object_coordinates
-        if self.object_coordinates is None:
-            # 還沒收到就回空 dict
-            return []
         # 單一物體回傳
         return self.object_coordinates.get(label, None)
 

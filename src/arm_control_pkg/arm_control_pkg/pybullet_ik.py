@@ -637,7 +637,7 @@ class PybulletRobotController:
             # 將文字 ID 也加入清除列表
             self.transformed_object_marker_ids.append(text_id)
 
-        return object_coords_world
+        return list(object_coords_world)
 
     def markTarget(self, target_position, color=[1, 0, 0]):
         """
