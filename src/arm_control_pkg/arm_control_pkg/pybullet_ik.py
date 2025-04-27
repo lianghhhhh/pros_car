@@ -372,7 +372,7 @@ class PybulletRobotController:
             z_axis_world = R_world_imu[:, 2]
 
             # 計算各軸的終點 (從 viz_origin 開始)
-            x_end_world = viz_origin + x_axis_world * axis_length
+            x_end_world = viz_origin - x_axis_world * axis_length
             y_end_world = viz_origin + y_axis_world * axis_length
             z_end_world = viz_origin + z_axis_world * axis_length
 
