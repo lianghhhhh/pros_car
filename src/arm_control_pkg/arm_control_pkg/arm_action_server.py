@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionServer, GoalResponse, CancelResponse
 from action_interface.action import ArmGoal
+import functools  # Import functools
 
 
 class ArmActionServer(Node):
@@ -74,7 +75,7 @@ class ArmActionServer(Node):
 
     def _select_arm_auto_method(self, mode: str):
         """
-        根據模式選擇對應的 arm_auto_controller 方法
+        根據模式選擇對應的 arm_auto_controller 方法或創建一個可調用對象。
         """
         if mode == "wave":
             return self.arm_auto_controller.arm_wave
@@ -82,9 +83,15 @@ class ArmActionServer(Node):
             return self.arm_auto_controller.arm_ik_move
         elif mode == "test":
             return self.arm_auto_controller.test
+        elif mode in ["up", "down", "right", "left"]:
+            # 使用 functools.partial 創建一個新的可調用對象
+            # 這個對象在被調用時，會執行 move_end_effector_direction 並傳入固定的 direction=mode
+            return functools.partial(
+                self.arm_auto_controller.move_end_effector_direction, direction=mode
+            )
         else:
-            print("no mode")
-            return None
+            self.get_logger().error(f"Unknown mode requested: {mode}")  # Log error here
+            return None  # Return None for unknown modes
 
     def _check_and_handle_cancel(self, goal_handle, result):
         """

@@ -302,6 +302,130 @@ class PybulletRobotController:
         print(f"Warning: Link '{link_name}' not found by iterating through joints.")
         return None  # Return None if not found
 
+    def calculate_ee_relative_target_positions(self, distance):
+        """
+        計算相對於當前末端執行器 **局部座標系** 的上、下、左、右目標世界座標。
+
+        Args:
+            distance (float): 要在末端執行器局部座標系的各個方向上移動的距離（單位：公尺）。
+                              - 上/下: 沿局部 Z 軸
+                              - 左/右: 沿局部 Y 軸 (假設 Y 軸指向左側)
+
+        Returns:
+            dict: 一個包含四個目標世界座標的字典，鍵為 'up', 'down', 'left', 'right'。
+                  每個值是一個包含 [x, y, z] 座標的列表。
+                  如果無法獲取末端執行器狀態，則返回 None。
+        """
+        try:
+            # 1. 獲取當前末端執行器的世界座標和姿態
+            ee_state = p.getLinkState(
+                self.robot_id, self.end_eff_index, computeForwardKinematics=True
+            )
+            current_position = np.array(ee_state[0])  # worldLinkFramePosition
+            current_orientation = ee_state[
+                1
+            ]  # worldLinkFrameOrientation (quaternion x,y,z,w)
+        except Exception as e:
+            print(f"獲取末端執行器狀態時發生錯誤: {e}")
+            return None
+
+        # 2. 將姿態四元數轉換為旋轉矩陣
+        try:
+            rotation_matrix = np.array(
+                p.getMatrixFromQuaternion(current_orientation)
+            ).reshape(3, 3)
+        except Exception as e:
+            print(f"從四元數轉換旋轉矩陣時發生錯誤: {e}")
+            return None
+
+        # 3. 提取末端執行器的局部座標軸在世界座標系中的方向向量
+        #   - X 軸通常是向前 (索引 0)
+        #   - Y 軸通常是向左 (索引 1)
+        #   - Z 軸通常是向上 (索引 2)
+        local_x_axis = rotation_matrix[:, 0]
+        local_y_axis = rotation_matrix[:, 1]  # Assuming Y is left
+        local_z_axis = rotation_matrix[:, 2]  # Assuming Z is up
+
+        # 4. 計算相對於末端執行器局部的目標世界座標
+        target_positions = {
+            "up": (current_position + local_z_axis * distance).tolist(),
+            "down": (current_position - local_z_axis * distance).tolist(),
+            "left": (current_position + local_y_axis * distance).tolist(),
+            "right": (current_position - local_y_axis * distance).tolist(),
+            # 如果需要前後移動，可以添加:
+            # 'forward': (current_position + local_x_axis * distance).tolist(),
+            # 'backward':(current_position - local_x_axis * distance).tolist(),
+        }
+
+        print(
+            f"基於末端執行器當前位置 {current_position.tolist()} 和姿態計算相對目標點:"
+        )
+        for direction, pos in target_positions.items():
+            print(f"  - {direction} (local): {pos}")
+
+        return target_positions
+
+    def move_ee_relative_example(
+        self, direction, distance, visualize=False, execute_move=False
+    ):
+        """
+        計算相對於末端執行器的局部目標世界座標，可選地視覺化並執行移動。
+
+        Args:
+            direction (str): 'up', 'down', 'left', or 'right'.
+            distance (float): 移動距離。
+            visualize (bool): 是否在 PyBullet 中標記計算出的目標點。預設為 True。
+            execute_move (bool): 是否計算 IK 並嘗試移動手臂到目標位置。預設為 False。
+
+        Returns:
+            list or None: 計算出的目標世界座標 [x, y, z]，如果無法計算或方向無效則返回 None。
+        """
+        target_positions = self.calculate_ee_relative_target_positions(distance)
+        target_pos_world = None  # Initialize to None
+
+        if target_positions and direction in target_positions:
+            target_pos_world = target_positions[direction]
+            print(
+                f"計算出相對於末端執行器 '{direction}' 方向的目標世界座標: {target_pos_world}"
+            )
+
+            # 可選：視覺化標記目標點
+            if visualize:
+                self.markTarget(
+                    target_pos_world, color=[0, 1, 1]
+                )  # Cyan color for target
+                print("目標點已標記 (青色)。")
+
+            # 可選：執行移動
+            if execute_move:
+                print("嘗試執行移動...")
+                # 可選：檢查可達性 (假設 is_position_reachable 存在)
+                # if hasattr(self, 'is_position_reachable') and self.is_position_reachable(target_pos_world):
+                #     print("目標位置可達，計算 IK...")
+                # else:
+                #     print("警告: 未檢查或目標位置可能不可達。繼續嘗試 IK...")
+
+                # 計算 IK (只關心位置)
+                joint_angles = self.solveInversePositionKinematics(target_pos_world)
+
+                if joint_angles:
+                    print(
+                        f"IK 解算成功: {joint_angles[:len(self.controllable_joints)]}"
+                    )
+                    # 設置關節角度 (假設 setJointPosition 存在且有效)
+                    self.setJointPosition(joint_angles[: len(self.controllable_joints)])
+                    print("已執行 setJointPosition。")
+                else:
+                    print("IK 求解失敗，未執行移動。")
+            # else: # if not execute_move
+            #     print("未請求執行移動 (execute_move=False)。")
+
+        else:
+            print(f"無法計算目標位置或方向 '{direction}' 無效。")
+            # target_pos_world remains None
+
+        return target_pos_world  # 返回計算出的世界座標或 None
+
     def offset_from_end_effector(self, y_offset, z_offset, mark_color=[1, 0, 1]):
         """
         基於 end-effector 當前姿態，將指定的 local Y/Z 軸偏差轉換為世界座標位置，

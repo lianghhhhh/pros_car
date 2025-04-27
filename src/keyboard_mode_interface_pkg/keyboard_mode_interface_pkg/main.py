@@ -34,6 +34,10 @@ class MenuApp:
                 "wave": None,
                 "arm_ik_move": None,
                 "test": None,
+                "up": None,
+                "down": None,
+                "left": None,
+                "right": None,
             },
             "Manual Crane Control": {
                 "Lift": None,

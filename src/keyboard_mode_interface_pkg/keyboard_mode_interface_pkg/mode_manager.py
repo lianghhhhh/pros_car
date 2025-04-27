@@ -22,7 +22,14 @@ class ModeManager:
             self.ros_manager.publish_arm_signal(arm_control_signal)
         elif "Automatic Arm Mode" in pressed_key_info:
             arm_control_signal = f"{title}:{subtitle}"
-            if title == "test" or title == "arm_ik_move":
+            if (
+                title == "test"
+                or title == "arm_ik_move"
+                or title == "up"
+                or title == "down"
+                or title == "left"
+                or title == "right"
+            ):
                 if subtitle == "q":
                     self.ros_manager.arm_action_client.cancel_arm()
                 else:
