@@ -53,53 +53,86 @@ class PybulletRobotController:
         self.marker_ids = []
         self.transformed_object_marker_ids = []
 
-    def markPointInFrontOfEndEffector(self, distance=0.3, color=[0, 1, 1]):
+    def markPointInFrontOfEndEffector(
+        self, distance=0.3, color=[0, 1, 1], visualize=True
+    ):
         """
-        畫在末端執行器前方一個點（會自動刪除舊的點）。
+        計算並可選地標記末端執行器前方指定距離的點。
+
+        Args:
+            distance (float): 沿末端執行器前方 (local X 軸) 的距離。
+            color (list): 視覺化標記的顏色。
+            visualize (bool): 是否繪製標記。
+
+        Returns:
+            np.ndarray: 計算出的目標點在世界座標系下的 [x, y, z] 座標。
         """
-        # 初始化 ID 容器
-        if not hasattr(self, "front_marker_ids"):
+        # 初始化 ID 容器 (如果需要視覺化)
+        if visualize and not hasattr(self, "front_marker_ids"):
             self.front_marker_ids = []
 
-        # 刪掉上一個標記
-        for mid in self.front_marker_ids:
-            p.removeUserDebugItem(mid)
-        self.front_marker_ids.clear()
+        # 刪掉上一個標記 (如果需要視覺化且列表存在)
+        if visualize and hasattr(self, "front_marker_ids"):
+            for mid in self.front_marker_ids:
+                try:  # Add try-except for robustness
+                    p.removeUserDebugItem(mid)
+                except:
+                    pass
+            self.front_marker_ids.clear()
 
         # 取得 EE 姿態與方向
-        ee_state = p.getLinkState(self.robot_id, self.end_eff_index)
-        position = np.array(ee_state[0])
-        orientation = ee_state[1]
-        rot_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
-        forward_direction = rot_matrix[:, 0]
-        target_point = position + forward_direction * distance
+        try:
+            ee_state = p.getLinkState(
+                self.robot_id, self.end_eff_index, computeForwardKinematics=True
+            )
+            position = np.array(ee_state[0])  # Use worldLinkFramePosition
+            orientation = ee_state[1]  # Use worldLinkFrameOrientation
+            rot_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
+            # Assuming the local X-axis is the forward direction for the end-effector
+            forward_direction = rot_matrix[:, 0]
+            target_point = position + forward_direction * distance
+        except Exception as e:
+            print(f"Error getting end-effector state or calculating target point: {e}")
+            # Return current EE position or None if state couldn't be retrieved
+            try:
+                ee_state = p.getLinkState(self.robot_id, self.end_eff_index)
+                return np.array(ee_state[0])  # Return current position as fallback
+            except:
+                return None  # Return None if even that fails
 
-        # 畫十字線
-        line_length = 0.05
-        self.front_marker_ids.append(
-            p.addUserDebugLine(
-                target_point - np.array([line_length, 0, 0]),
-                target_point + np.array([line_length, 0, 0]),
-                color,
-                lineWidth=2,
+        # 視覺化 (可選)
+        if visualize:
+            line_length = 0.05
+            # X line
+            self.front_marker_ids.append(
+                p.addUserDebugLine(
+                    (target_point - np.array([line_length, 0, 0])).tolist(),
+                    (target_point + np.array([line_length, 0, 0])).tolist(),
+                    color,
+                    lineWidth=2,
+                )
             )
-        )
-        self.front_marker_ids.append(
-            p.addUserDebugLine(
-                target_point - np.array([0, line_length, 0]),
-                target_point + np.array([0, line_length, 0]),
-                color,
-                lineWidth=2,
+            # Y line
+            self.front_marker_ids.append(
+                p.addUserDebugLine(
+                    (target_point - np.array([0, line_length, 0])).tolist(),
+                    (target_point + np.array([0, line_length, 0])).tolist(),
+                    color,
+                    lineWidth=2,
+                )
             )
-        )
-        self.front_marker_ids.append(
-            p.addUserDebugLine(
-                target_point - np.array([0, 0, line_length]),
-                target_point + np.array([0, 0, line_length]),
-                color,
-                lineWidth=2,
+            # Z line
+            self.front_marker_ids.append(
+                p.addUserDebugLine(
+                    (target_point - np.array([0, 0, line_length])).tolist(),
+                    (target_point + np.array([0, 0, line_length])).tolist(),
+                    color,
+                    lineWidth=2,
+                )
             )
-        )
+
+        # 返回計算出的座標
+        return list(target_point)
 
     def draw_link_axes(self, link_name=None, axis_length=0.2):
         """
@@ -166,6 +199,108 @@ class PybulletRobotController:
                 pointSize=30,  # 点大小，调大一些看着像小球
             )
         )
+
+    def is_link_close_to_position(self, link_name, target_position, threshold):
+        """
+        計算指定 link 的當前位置與目標位置之間的距離，並判斷是否小於閾值。
+        Handles base_link using getBasePositionAndOrientation.
+
+        Args:
+            link_name (str): 要檢查的 link 的名稱 (e.g., "base_link", "camera_1").
+            target_position (list or tuple): 目標世界座標 [x, y, z]。
+            threshold (float): 距離閾值（單位：公尺）。
+
+        Returns:
+            bool: 如果 link 的當前位置與目標位置的距離小於 threshold，則返回 True，否則返回 False。
+                  如果找不到 link 或輸入無效，也返回 False。
+        """
+        # --- Input Validation ---
+        if not isinstance(target_position, (list, tuple)) or len(target_position) < 3:
+            print(
+                "錯誤: target_position 必須是包含至少三個元素 [x, y, z] 的列表或元組。"
+            )
+            return False
+        if not isinstance(threshold, (int, float)) or threshold < 0:
+            print("錯誤: threshold 必須是一個非負數值。")
+            return False
+
+        target_pos_np = np.array(target_position[0:3])
+
+        # --- Get Current Link Position ---
+        current_link_pos_np = None
+        if link_name == "base_link":
+            try:
+                # Use the correct function for the base link
+                base_pos, _ = p.getBasePositionAndOrientation(self.robot_id)
+                current_link_pos_np = np.array(base_pos)
+                print(f"獲取 base_link 位置: {current_link_pos_np}")
+            except Exception as e:
+                print(f"獲取 base_link 位置時發生錯誤: {e}")
+                return False
+        else:
+            # --- Find Link Index for non-base links ---
+            # _find_link_index now returns the JOINT index
+            joint_idx = self._find_link_index(link_name)
+            if joint_idx is None:
+                # _find_link_index already prints an error/warning
+                return False
+            # --- Get Current Link Position using the JOINT index ---
+            try:
+                # p.getLinkState uses the JOINT index whose child link we want
+                link_state = p.getLinkState(
+                    self.robot_id, joint_idx, computeForwardKinematics=True
+                )
+                current_link_pos_np = np.array(link_state[0])  # worldLinkFramePosition
+                print(
+                    f"獲取 link '{link_name}' (關節索引 {joint_idx}) 位置: {current_link_pos_np}"
+                )
+            except Exception as e:
+                # Catch potential errors if joint_idx is somehow invalid, though _find_link_index should prevent this
+                print(
+                    f"獲取 link '{link_name}' (關節索引 {joint_idx}) 狀態時發生錯誤: {e}"
+                )
+                return False
+
+        if current_link_pos_np is None:
+            # Safeguard
+            print(f"未能確定 link '{link_name}' 的當前位置。")
+            return False
+
+        # --- Calculate Distance ---
+        distance = np.linalg.norm(current_link_pos_np - target_pos_np)
+
+        # --- Compare with Threshold ---
+        is_close = distance < threshold
+        # print(f"Link '{link_name}' 當前位置: {current_link_pos_np}, 目標位置: {target_pos_np}") # Already printed above
+        print(
+            f"計算距離: {distance:.4f} 公尺, 閾值: {threshold} 公尺. 是否在閾值內: {is_close}"
+        )
+
+        return is_close
+
+    def _find_link_index(self, link_name):
+        """
+        Helper function to find the index of a link by its name.
+        Returns the joint index whose child link matches the name.
+        Does NOT handle "base_link".
+        """
+        # Iterate through joints to find other links
+        if self.num_joints is None:  # Ensure num_joints is initialized
+            self.num_joints = p.getNumJoints(self.robot_id)
+
+        for jid in range(self.num_joints):
+            try:
+                info = p.getJointInfo(self.robot_id, jid)
+                # Link name is stored in the 12th element of getJointInfo
+                if info[12].decode("utf-8") == link_name:
+                    return jid  # Return the JOINT index
+            except Exception as e:
+                print(f"Error getting info for joint {jid}: {e}")
+                # Continue to next joint or handle error appropriately
+
+        # If loop finishes without finding the link
+        print(f"Warning: Link '{link_name}' not found by iterating through joints.")
+        return None  # Return None if not found
 
     def offset_from_end_effector(self, y_offset, z_offset, mark_color=[1, 0, 1]):
         """
@@ -412,7 +547,12 @@ class PybulletRobotController:
             p.stepSimulation()
 
     def transform_object_to_world(
-        self, T_world_to_imu, object_coords_imu, visualize=False, marker_color=[0, 1, 1]
+        self,
+        T_world_to_imu,
+        object_coords_imu,
+        visualize=False,
+        marker_color=[0, 1, 1],
+        text_color=[1, 1, 1],
     ):
         """
         將相對於 IMU 坐標系的物體座標轉換為世界座標。
@@ -478,6 +618,24 @@ class PybulletRobotController:
             # 為了簡單起見，假設 markTarget 畫的線條 ID 存儲在 self.target_marker_ids
             # 我們將這些 ID 複製過來
             self.transformed_object_marker_ids.extend(self.target_marker_ids)
+            # 2. 準備要顯示的文字
+            coord_text = f"Obj: ({object_coords_world[0]:.2f}, {object_coords_world[1]:.2f}, {object_coords_world[2]:.2f})"
+            # 決定文字顯示的位置 (例如，在標記上方一點)
+            text_position = object_coords_world + np.array(
+                [0, 0, 0.05]
+            )  # Offset slightly above the marker
+
+            # 3. 添加除錯文字
+            text_id = p.addUserDebugText(
+                text=coord_text,
+                textPosition=text_position.tolist(),
+                textColorRGB=text_color,
+                textSize=1.0,  # 可以調整文字大小
+                # parentObjectUniqueId=self.robot_id, # 可選：讓文字跟隨某個物體
+                # parentLinkIndex=-1 # 可選：讓文字跟隨某個 link
+            )
+            # 將文字 ID 也加入清除列表
+            self.transformed_object_marker_ids.append(text_id)
 
         return object_coords_world
 

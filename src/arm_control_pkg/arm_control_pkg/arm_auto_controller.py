@@ -25,19 +25,43 @@ class ArmAutoController:
 
     def test(self):
 
-        while 1:
-            imu_data = self.arm_commute_node.get_latest_imu_data()
-            obj_position_data = self.arm_commute_node.get_latest_object_coordinates(
-                label="fire"
-            )
-            extrinsics = self.pybullet_robot_controller.calculate_imu_extrinsics(
-                imu_world_quaternion=imu_data, link_name="camera_1", visualize=False
-            )
-            self.pybullet_robot_controller.transform_object_to_world(
-                T_world_to_imu=extrinsics,
-                object_coords_imu=obj_position_data,
-                visualize=True,
-            )
+        # for obj in pybullet world position test
+
+        # imu_data = self.arm_commute_node.get_latest_imu_data()
+        # obj_position_data = self.arm_commute_node.get_latest_object_coordinates(
+        #     label="fire"
+        # )
+        # extrinsics = self.pybullet_robot_controller.calculate_imu_extrinsics(
+        #     imu_world_quaternion=imu_data, link_name="camera_1", visualize=False
+        # )
+        # obj_pos_in_pybullet = self.pybullet_robot_controller.transform_object_to_world(
+        #     T_world_to_imu=extrinsics,
+        #     object_coords_imu=obj_position_data,
+        #     visualize=True,
+        # )
+        # robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
+        #     target_position=obj_pos_in_pybullet
+        # )
+        # for i in robot_angle:
+        #     self.pybullet_robot_controller.setJointPosition(position=i)
+        #     time.sleep(0.1)
+
+        # for obj forward move test
+        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
+            distance=0.4,
+        )
+        # robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
+        #     target_position=obj_pos
+        # )
+        ans = self.pybullet_robot_controller.is_link_close_to_position(
+            link_name="base_link", target_position=obj_pos, threshold=0.6
+        )
+        print(ans)
+        # for i in robot_angle:
+        #     self.pybullet_robot_controller.setJointPosition(position=i)
+        #     time.sleep(0.1)
+
+        # self.pybullet_robot_controller.setJointPosition(position=robot_angle)
 
         # move test
         # t = self.pybullet_robot_controller.generateInterpolatedTrajectory(
