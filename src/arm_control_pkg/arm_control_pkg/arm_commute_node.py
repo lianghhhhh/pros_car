@@ -2,8 +2,10 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32MultiArray, String
 from trajectory_msgs.msg import JointTrajectoryPoint
+from sensor_msgs.msg import Imu  # Import the Imu message type
 import math
 import numpy as np
+import json  # Import the json module
 
 # can change one index angle
 # chnage the angle of all joints
@@ -17,10 +19,88 @@ class ArmCummuteNode(Node):
         # Load parameters first
         self.arm_params = arm_params.get_arm_params()
 
-        # Initialize arm parameters
+        # Initialize arm parameters publisher
         self.arm_pub = self.create_publisher(
             JointTrajectoryPoint, self.arm_params["global"]["arm_topic"], 10
         )
+
+        # --- Add IMU Subscriber ---
+        self.imu_sub = self.create_subscription(
+            Imu,
+            self.arm_params["global"][
+                "imu_receive_topic"
+            ],  # Get topic name from config
+            self.imu_callback,
+            10,
+        )
+        self.get_logger().info(
+            f"Subscribing to IMU topic: {self.arm_params['global']['imu_receive_topic']}"
+        )
+        # --------------------------
+
+        # --- Add yolo object offset Subscriber ---
+        self.yolo_object_offset_sub = self.create_subscription(
+            String,
+            self.arm_params["global"][
+                "yolo_object_offset_receive_topic"
+            ],  # Get topic name from config
+            self.yolo_object_offset_callback,
+            10,
+        )
+        self.get_logger().info(
+            f"Subscribing to IMU topic: {self.arm_params['global']['imu_receive_topic']}"
+        )
+        # --------------------------
+
+    def imu_callback(self, msg: Imu):
+        """Callback function for processing incoming IMU data."""
+        # Example: Log the orientation quaternion
+        orientation = msg.orientation
+        # You can add more processing here, e.g., converting quaternion to Euler angles
+        # or using linear acceleration/angular velocity data.
+
+    def yolo_object_offset_callback(self, msg: String):
+        """Callback function for processing incoming YOLO object offset data."""
+        try:
+            # Extract the JSON string from the message data
+            json_string = msg.data
+            # Parse the JSON string into a Python list of dictionaries
+            object_list = json.loads(json_string)
+
+            # Create a new dictionary mapping labels to coordinates
+            new_coordinates = {}
+            for item in object_list:
+                if isinstance(item, dict) and "label" in item and "offset_flu" in item:
+                    label = item["label"]
+                    coordinates = item["offset_flu"]
+                    # Ensure coordinates are a list of floats
+                    if isinstance(coordinates, list) and len(coordinates) == 3:
+                        try:
+                            float_coords = [float(c) for c in coordinates]
+                            new_coordinates[label] = float_coords
+                        except (ValueError, TypeError):
+                            self.get_logger().warn(
+                                f"Invalid coordinate format for label '{label}': {coordinates}"
+                            )
+                    else:
+                        self.get_logger().warn(
+                            f"Unexpected coordinate format for label '{label}': {coordinates}"
+                        )
+                else:
+                    self.get_logger().warn(
+                        f"Skipping invalid item in JSON list: {item}"
+                    )
+
+            # Update the stored coordinates
+            self.object_coordinates = new_coordinates
+            self.get_logger().info(
+                f"Updated object coordinates: {self.object_coordinates}"
+            )
+        except json.JSONDecodeError as e:
+            self.get_logger().error(f"Failed to decode JSON string: {e}")
+            self.get_logger().error(f"Received string: {msg.data}")
+        except Exception as e:
+            self.get_logger().error(f"Error processing YOLO offset message: {e}")
 
     def degrees_to_radians(self, degree_positions):
         """Convert a list of positions from degrees to radians using NumPy
