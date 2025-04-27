@@ -24,11 +24,18 @@ class ArmAutoController:
         return ArmGoal.Result(success=True, message="success")
 
     def test(self):
-        t = self.pybullet_robot_controller.generateInterpolatedTrajectory(
-            [0.3, 0.3, 0.3]
-        )
-        for i in t:
-            self.pybullet_robot_controller.setJointPosition(position=i)
-            time.sleep(0.1)
-        self.pybullet_robot_controller.draw_link_axes(link_name="camera_1")
+
+        while 1:
+            imu_data = self.arm_commute_node.get_latest_imu_data()
+            self.pybullet_robot_controller.calculate_imu_extrinsics(
+                imu_world_quaternion=imu_data, link_name="camera_1", visualize=True
+            )
+        # move test
+        # t = self.pybullet_robot_controller.generateInterpolatedTrajectory(
+        #     [0.3, 0.3, 0.3]
+        # )
+        # for i in t:
+        #     self.pybullet_robot_controller.setJointPosition(position=i)
+        #     time.sleep(0.1)
+        # self.pybullet_robot_controller.draw_link_axes(link_name="camera_1")
         return ArmGoal.Result(success=True, message="success")

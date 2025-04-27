@@ -25,6 +25,7 @@ class ArmCummuteNode(Node):
         )
 
         # --- Add IMU Subscriber ---
+        self.latest_imu_data = None
         self.imu_sub = self.create_subscription(
             Imu,
             self.arm_params["global"][
@@ -39,6 +40,7 @@ class ArmCummuteNode(Node):
         # --------------------------
 
         # --- Add yolo object offset Subscriber ---
+        self.object_coordinates = {}
         self.yolo_object_offset_sub = self.create_subscription(
             String,
             self.arm_params["global"][
@@ -56,8 +58,17 @@ class ArmCummuteNode(Node):
         """Callback function for processing incoming IMU data."""
         # Example: Log the orientation quaternion
         orientation = msg.orientation
+        self.latest_imu_data = msg
         # You can add more processing here, e.g., converting quaternion to Euler angles
         # or using linear acceleration/angular velocity data.
+
+    def get_latest_imu_data(self):
+        """
+        回傳收到的最新 IMU 方向四元數 [x, y, z, w]。
+        如果還沒收到過就回傳 None。
+        """
+        orientation = self.latest_imu_data.orientation
+        return [orientation.x, orientation.y, orientation.z, orientation.w]
 
     def yolo_object_offset_callback(self, msg: String):
         """Callback function for processing incoming YOLO object offset data."""
@@ -93,14 +104,22 @@ class ArmCummuteNode(Node):
 
             # Update the stored coordinates
             self.object_coordinates = new_coordinates
-            self.get_logger().info(
-                f"Updated object coordinates: {self.object_coordinates}"
-            )
+            # self.get_logger().info(
+            #     f"Updated object coordinates: {self.object_coordinates}"
+            # )
         except json.JSONDecodeError as e:
             self.get_logger().error(f"Failed to decode JSON string: {e}")
             self.get_logger().error(f"Received string: {msg.data}")
         except Exception as e:
             self.get_logger().error(f"Error processing YOLO offset message: {e}")
+
+    def get_latest_object_coordinates(self) -> dict:
+        """
+        回傳解析後的 YOLO 物體偏移字典，
+        格式 { label: [x, y, z], … }，
+        若還沒收到就回空 dict。
+        """
+        return self.object_coordinates
 
     def degrees_to_radians(self, degree_positions):
         """Convert a list of positions from degrees to radians using NumPy
