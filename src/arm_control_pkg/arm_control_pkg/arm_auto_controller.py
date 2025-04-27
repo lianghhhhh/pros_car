@@ -27,9 +27,18 @@ class ArmAutoController:
 
         while 1:
             imu_data = self.arm_commute_node.get_latest_imu_data()
-            self.pybullet_robot_controller.calculate_imu_extrinsics(
-                imu_world_quaternion=imu_data, link_name="camera_1", visualize=True
+            obj_position_data = self.arm_commute_node.get_latest_object_coordinates(
+                label="fire"
             )
+            extrinsics = self.pybullet_robot_controller.calculate_imu_extrinsics(
+                imu_world_quaternion=imu_data, link_name="camera_1", visualize=False
+            )
+            self.pybullet_robot_controller.transform_object_to_world(
+                T_world_to_imu=extrinsics,
+                object_coords_imu=obj_position_data,
+                visualize=True,
+            )
+
         # move test
         # t = self.pybullet_robot_controller.generateInterpolatedTrajectory(
         #     [0.3, 0.3, 0.3]

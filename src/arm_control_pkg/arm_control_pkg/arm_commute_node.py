@@ -113,13 +113,20 @@ class ArmCummuteNode(Node):
         except Exception as e:
             self.get_logger().error(f"Error processing YOLO offset message: {e}")
 
-    def get_latest_object_coordinates(self) -> dict:
+    def get_latest_object_coordinates(self, label: str = None) -> dict:
         """
         回傳解析後的 YOLO 物體偏移字典，
         格式 { label: [x, y, z], … }，
         若還沒收到就回空 dict。
         """
-        return self.object_coordinates
+        if label is None:
+            # 全部回傳
+            return self.object_coordinates
+        if self.object_coordinates is None:
+            # 還沒收到就回空 dict
+            return []
+        # 單一物體回傳
+        return self.object_coordinates.get(label, None)
 
     def degrees_to_radians(self, degree_positions):
         """Convert a list of positions from degrees to radians using NumPy

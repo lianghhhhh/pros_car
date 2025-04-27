@@ -51,6 +51,7 @@ class PybulletRobotController:
         # self.draw_link_axes(link_name="camera_1")
         self.mimic_pairs = {}  # {主控_joint_index: 被控_joint_index}
         self.marker_ids = []
+        self.transformed_object_marker_ids = []
 
     def markPointInFrontOfEndEffector(self, distance=0.3, color=[0, 1, 1]):
         """
@@ -409,6 +410,76 @@ class PybulletRobotController:
         )
         for _ in range(100):  # to settle the robot to its position
             p.stepSimulation()
+
+    def transform_object_to_world(
+        self, T_world_to_imu, object_coords_imu, visualize=False, marker_color=[0, 1, 1]
+    ):
+        """
+        將相對於 IMU 坐標系的物體座標轉換為世界座標。
+
+        Args:
+            T_world_to_imu (np.ndarray): 4x4 的世界座標系到 IMU 坐標系的外參變換矩陣。
+            object_coords_imu (list or np.array): 物體在 IMU 坐標系下的 [x, y, z] 座標。
+                                                假設為 FLU 坐標系 (X 前, Y 左, Z 上)。
+            visualize (bool): 是否在計算出的世界座標位置繪製標記。
+            marker_color (list): 視覺化標記的顏色，預設為青色 [0, 1, 1]。
+
+        Returns:
+            np.ndarray or None: 物體在世界座標系下的 [x, y, z] 座標，如果輸入無效則返回 None。
+        """
+        # --- 輸入驗證 ---
+        if not isinstance(T_world_to_imu, np.ndarray) or T_world_to_imu.shape != (4, 4):
+            print("錯誤: T_world_to_imu 必須是 4x4 numpy 矩陣。")
+            return None
+        try:
+            object_coords_imu = np.array(object_coords_imu, dtype=float)
+            if object_coords_imu.shape != (3,):
+                raise ValueError("Object coordinates must have 3 elements.")
+        except Exception as e:
+            print(f"錯誤: object_coords_imu 無效: {e}")
+            return None
+
+        # --- 坐標轉換 ---
+        try:
+            # 1. 計算從 IMU 到世界的逆變換矩陣
+            T_imu_to_world = np.linalg.inv(T_world_to_imu)
+
+            # 2. 將物體在 IMU 坐標系的座標轉為齊次向量
+            p_imu_homogeneous = np.append(object_coords_imu, 1.0)
+
+            # 3. 應用變換矩陣得到世界坐標（齊次）
+            p_world_homogeneous = T_imu_to_world @ p_imu_homogeneous
+
+            # 4. 提取世界坐標的 x, y, z
+            object_coords_world = p_world_homogeneous[:3]
+
+        except np.linalg.LinAlgError:
+            print("錯誤: 無法計算 T_world_to_imu 的逆矩陣。")
+            return None
+        except Exception as e:
+            print(f"坐標轉換時發生錯誤: {e}")
+            return None
+
+        # --- 視覺化 (可選) ---
+        # 清除舊的標記
+        for mid in self.transformed_object_marker_ids:
+            try:
+                p.removeUserDebugItem(mid)
+            except:
+                pass
+        self.transformed_object_marker_ids.clear()
+
+        if visualize:
+            # 使用 markTarget 函數來繪製十字標記
+            self.markTarget(object_coords_world, color=marker_color)
+            # 將 markTarget 創建的 ID 保存到這個函數專用的列表中
+            # 注意：markTarget 內部會管理 target_marker_ids，這裡我們需要複製一份
+            # 或者修改 markTarget 讓它可以選擇性地返回 ID
+            # 為了簡單起見，假設 markTarget 畫的線條 ID 存儲在 self.target_marker_ids
+            # 我們將這些 ID 複製過來
+            self.transformed_object_marker_ids.extend(self.target_marker_ids)
+
+        return object_coords_world
 
     def markTarget(self, target_position, color=[1, 0, 0]):
         """
