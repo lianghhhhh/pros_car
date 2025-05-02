@@ -54,7 +54,7 @@ class PybulletRobotController:
         self.transformed_object_marker_ids = []
 
     def markPointInFrontOfEndEffector(
-        self, distance=0.3, color=[0, 1, 1], visualize=True
+        self, distance=0.3, z_offset=0.1, color=[0, 1, 1], visualize=True
     ):
         """
         計算並可選地標記末端執行器前方指定距離的點。
@@ -91,6 +91,7 @@ class PybulletRobotController:
             # Assuming the local X-axis is the forward direction for the end-effector
             forward_direction = rot_matrix[:, 0]
             target_point = position + forward_direction * distance
+            target_point[2] += z_offset  # Add Z offset to the target point
         except Exception as e:
             print(f"Error getting end-effector state or calculating target point: {e}")
             # Return current EE position or None if state couldn't be retrieved
@@ -429,7 +430,9 @@ class PybulletRobotController:
 
         return target_pos_world  # 返回計算出的世界座標或 None
 
-    def offset_from_end_effector(self, y_offset, z_offset, mark_color=[1, 0, 1]):
+    def offset_from_end_effector(
+        self, x_offset, y_offset, z_offset, visualize=False, mark_color=[1, 0, 1]
+    ):
         """
         基於 end-effector 當前姿態，將指定的 local Y/Z 軸偏差轉換為世界座標位置，
         並用 IK 解出對應的關節角度（弧度），同時標記該點。
@@ -451,24 +454,28 @@ class PybulletRobotController:
         rot_matrix = np.array(p.getMatrixFromQuaternion(orientation)).reshape(3, 3)
 
         # Step 3: 抓出 local Y/Z 軸方向向量
+        local_x_axis = rot_matrix[:, 0]
         local_y_axis = rot_matrix[:, 1]
         local_z_axis = rot_matrix[:, 2]
 
         # Step 4: 偏移計算
-        offset_vector = y_offset * local_y_axis + z_offset * local_z_axis
+        offset_vector = (
+            x_offset * local_x_axis + y_offset * local_y_axis + z_offset * local_z_axis
+        )
         new_position = position + offset_vector
 
-        # Step 5: 標記該位置
-        self.markTarget(new_position, color=mark_color)
+        if visualize:
+            # Step 5: 標記該位置
+            self.markTarget(new_position, color=mark_color)
+        return new_position
+        # # Step 6: 解 IK
+        # ik_solution = self.solveInversePositionKinematics(list(new_position))
 
-        # Step 6: 解 IK
-        ik_solution = self.solveInversePositionKinematics(list(new_position))
-
-        if ik_solution:
-            return ik_solution[: len(self.controllable_joints)]
-        else:
-            print("❌ 無法計算偏移後的 IK 解")
-            return None
+        # if ik_solution:
+        #     return ik_solution[: len(self.controllable_joints)]
+        # else:
+        #     print("❌ 無法計算偏移後的 IK 解")
+        #     return None
 
     def getJointStates(self):
         joint_states = p.getJointStates(self.robot_id, self.controllable_joints)

@@ -83,11 +83,15 @@ class ArmActionServer(Node):
             return self.arm_auto_controller.arm_ik_move
         elif mode == "test":
             return self.arm_auto_controller.test
-        elif mode in ["up", "down", "right", "left", "backward"]:
+        elif mode in ["up", "down", "right", "left"]:
             # 使用 functools.partial 創建一個新的可調用對象
             # 這個對象在被調用時，會執行 move_end_effector_direction 並傳入固定的 direction=mode
             return functools.partial(
                 self.arm_auto_controller.move_end_effector_direction, direction=mode
+            )
+        elif mode in ["forward", "backward"]:
+            return functools.partial(
+                self.arm_auto_controller.move_forward_backward, direction=mode
             )
         else:
             self.get_logger().error(f"Unknown mode requested: {mode}")  # Log error here

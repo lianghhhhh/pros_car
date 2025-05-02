@@ -38,6 +38,7 @@ class MenuApp:
                 "down": None,
                 "left": None,
                 "right": None,
+                "forward": None,
                 "backward": None,
             },
             "Manual Crane Control": {

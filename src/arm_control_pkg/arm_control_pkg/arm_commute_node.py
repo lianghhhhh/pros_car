@@ -165,4 +165,4 @@ class ArmCummuteNode(Node):
         msg.time_from_start.sec = 0
         msg.time_from_start.nanosec = 0
         self.arm_pub.publish(msg)
-        self.get_logger().info(f"Published angles in radians: {radian_positions}")
+        # self.get_logger().info(f"Published angles in radians: {radian_positions}")

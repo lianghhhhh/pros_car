@@ -83,5 +83,5 @@ class ArmAngleControl:
             positions[joint_key] = max(min(positions[joint_key], max_angle), min_angle)
 
         # Return the validated positions
-        print(f"Final validated positions: {positions}")
+        # print(f"Final validated positions: {positions}")
         return positions
