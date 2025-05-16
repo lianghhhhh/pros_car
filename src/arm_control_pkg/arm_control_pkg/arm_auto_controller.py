@@ -44,7 +44,7 @@ class ArmAutoController:
 
     def test(self):
         while 1:
-            self.follow_obj()
+            self.follow_obj(label="ball")
         # for obj forward move test------------------------------------------
 
         # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
@@ -77,7 +77,7 @@ class ArmAutoController:
         # self.pybullet_robot_controller.draw_link_axes(link_name="camera_1")
         return ArmGoal.Result(success=True, message="success")
 
-    def follow_obj(self, label="fire", target_depth=0.3):
+    def follow_obj(self, label="ball", target_depth=0.3):
         """
         跟隨指定標籤的物體，並嘗試保持固定的深度距離。
         當物體位置已經接近目標位置時，將不移動機械臂。
@@ -107,7 +107,7 @@ class ArmAutoController:
         # 定義閾值，當偏差小於閾值時認為已經達到目標
         depth_threshold = 0.1
         lateral_threshold = 0.1
-        print("depth_threshold, obj_y, obj_z", [depth_threshold, obj_y, obj_z])
+        # print("depth_threshold, obj_y, obj_z", [depth_threshold, obj_y, obj_z])
         # 檢查是否所有方向都已接近目標
         if (
             abs(depth_diff) <= depth_threshold
@@ -153,23 +153,23 @@ class ArmAutoController:
         )
 
         # # 生成移動軌跡，使用較小的步數使運動更平滑
-        # robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
-        #     target_position=target_position, steps=5  # 使用較少的步數，移動更快速
-        # )
+        robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
+            target_position=target_position, steps=3  # 使用較少的步數，移動更快速
+        )
 
         # # 執行移動
-        # if robot_angle:
-        #     for i in robot_angle:
-        #         self.move_real_and_virtual(radian=i)
-        #         time.sleep(0.05)  # 縮短等待時間，使運動更流暢
+        if robot_angle:
+            for i in robot_angle:
+                self.move_real_and_virtual(radian=i)
+                time.sleep(0.05)  # 縮短等待時間，使運動更流暢
 
-        #     return ArmGoal.Result(
-        #         success=True, message=f"Successfully followed {label}"
-        #     )
-        # else:
-        #     return ArmGoal.Result(
-        #         success=False, message="Failed to generate trajectory"
-        #     )
+            return ArmGoal.Result(
+                success=True, message=f"Successfully followed {label}"
+            )
+        else:
+            return ArmGoal.Result(
+                success=False, message="Failed to generate trajectory"
+            )
 
     def ik_move_func(self):
         # use ik move to obj position, but not excute

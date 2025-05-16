@@ -20,7 +20,6 @@ class ManualControlNode(Node):
         arm_signal = self.parse_control_signal(msg.data)
         mode_str, key_str = arm_signal
 
-        # 只在 mode_str 是数字、key_str 不为 None 时才继续，否则直接跳过
         if mode_str is None or key_str is None or not mode_str.isdigit():
             return
 
