@@ -25,6 +25,7 @@ class ModeManager:
             if (
                 title == "test"
                 or title == "arm_ik_move"
+                or title == "init_pose"
                 or title == "up"
                 or title == "down"
                 or title == "left"

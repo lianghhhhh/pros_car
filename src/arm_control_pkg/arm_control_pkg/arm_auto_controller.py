@@ -1,6 +1,8 @@
+# Control arm depending on self.move_real_and_virtual
 from action_interface.action import ArmGoal
 import time
 import math
+from typing import Tuple, List
 
 
 class ArmAutoController:
@@ -42,9 +44,31 @@ class ArmAutoController:
             )
             return []  # Or raise an error
 
+    def init_pose(self):
+        angle = self.arm_agnle_control.arm_default_change()
+        self.arm_commute_node.publish_arm_angle()
+        joints_reset_degrees = angle
+        joints_reset_radians = [math.radians(angle) for angle in joints_reset_degrees]
+        self.pybullet_robot_controller.setJointPosition(position=joints_reset_radians)
+        return ArmGoal.Result(success=True, message="success")
+
     def test(self):
-        while 1:
-            self.follow_obj(label="ball")
+        self.follow_obj(label="ball")
+        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
+            distance=0.4,
+        )
+        data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
+        depth = data[0]
+        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
+            distance=depth,
+        )
+        robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
+            target_position=obj_pos
+        )
+        for i in robot_angle:
+            self.move_real_and_virtual(radian=i)
+            time.sleep(0.1)
+
         # for obj forward move test------------------------------------------
 
         # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
@@ -77,102 +101,94 @@ class ArmAutoController:
         # self.pybullet_robot_controller.draw_link_axes(link_name="camera_1")
         return ArmGoal.Result(success=True, message="success")
 
-    def follow_obj(self, label="ball", target_depth=0.3):
+    def _is_at_target(
+        self,
+        depth: float,
+        y: float,
+        z: float,
+        target_depth: float,
+        depth_thresh: float,
+        lateral_thresh: float,
+    ) -> bool:
         """
-        跟隨指定標籤的物體，並嘗試保持固定的深度距離。
-        當物體位置已經接近目標位置時，將不移動機械臂。
-
-        Args:
-            label (str): 要跟隨的物體標籤
-            target_depth (float): 想要保持的目標深度距離（單位：米）
-
-        Returns:
-            ArmGoal.Result: 操作結果
+        判斷當前 (depth, y, z) 是否已經進入允收範圍。
         """
-        # 獲取物體座標 (相機座標系)
-        obj_position_data = self.arm_commute_node.get_latest_object_coordinates(
-            label=label
+        return (
+            # abs(depth - target_depth) <= depth_thresh
+            abs(y) <= lateral_thresh
+            and abs(z) <= lateral_thresh
         )
 
-        if obj_position_data is None or len(obj_position_data) < 3:
-            print(f"無法獲取 '{label}' 的座標")
+    def follow_obj(self, label="ball", target_depth=0.3):
+        # 參數設定
+        depth_threshold = 0.05
+        lateral_threshold = 0.05
+        x_adjust_factor = 0.3
+        y_adjust_factor = 0.8
+        z_adjust_factor = 0.3
+
+        # 1. 讀座標
+        data = self.arm_commute_node.get_latest_object_coordinates(label=label)
+        if not data or len(data) < 3:
             return ArmGoal.Result(success=False, message="No object detected")
+        current_depth, obj_y, obj_z = data
 
-        current_depth = obj_position_data[0]  # 目前物體的深度
-        obj_y = obj_position_data[1]  # 物體的左右位置
-        obj_z = obj_position_data[2]  # 物體的上下位置
-
-        # 計算需要的 x_offset 來達到目標深度
-        depth_diff = current_depth - target_depth
-        # 定義閾值，當偏差小於閾值時認為已經達到目標
-        depth_threshold = 0.1
-        lateral_threshold = 0.1
-        # print("depth_threshold, obj_y, obj_z", [depth_threshold, obj_y, obj_z])
-        # 檢查是否所有方向都已接近目標
-        if (
-            abs(depth_diff) <= depth_threshold
-            and abs(obj_y) <= lateral_threshold
-            and abs(obj_z) <= lateral_threshold
+        # 2. 初次檢查
+        if self._is_at_target(
+            current_depth,
+            obj_y,
+            obj_z,
+            target_depth,
+            depth_threshold,
+            lateral_threshold,
         ):
-            print("已達到目標位置，無需移動")
+
             return ArmGoal.Result(success=True, message="Already at target position")
-        # else:
-        #     # 打印未達成的條件和差距
-        #     print("未達到目標位置，需要移動:")
-        #     if abs(depth_diff) > depth_threshold:
-        #         print(
-        #             f"  - 深度方向: 差距 {abs(depth_diff):.3f}m (閾值: {depth_threshold}m)"
-        #         )
-        #     if abs(obj_y) > lateral_threshold:
-        #         print(
-        #             f"  - 左右方向: 差距 {abs(obj_y):.3f}m (閾值: {lateral_threshold}m)"
-        #         )
-        #     if abs(obj_z) > lateral_threshold:
-        #         print(
-        #             f"  - 上下方向: 差距 {abs(obj_z):.3f}m (閾值: {lateral_threshold}m)"
-        #         )
-        # 調整因子來平滑移動，避免過度調整 (可以根據需要調整)
-        x_adjust_factor = 0.3  # 深度調整因子
-        y_adjust_factor = 0.3  # y方向調整因子
-        z_adjust_factor = 0.3  # z方向調整因子
 
-        # 計算三個方向的偏移
+        # 3. 計算偏移
+        depth_diff = current_depth - target_depth
         x_offset = depth_diff * x_adjust_factor
-        y_offset = obj_y * y_adjust_factor  # 物體在左側為正，在右側為負
-        z_offset = obj_z * z_adjust_factor  # 物體在上方為正，在下方為負
+        y_offset = obj_y * y_adjust_factor
+        z_offset = obj_z * z_adjust_factor
 
-        # print(f"計算偏移: x={x_offset:.3f}, y={y_offset:.3f}, z={z_offset:.3f}")
-
-        # 使用 offset_from_end_effector 計算目標位置，並可視化
-        target_position = self.pybullet_robot_controller.offset_from_end_effector(
+        # 4. 設定絕對深度（可選）
+        target_pos = self.pybullet_robot_controller.offset_from_end_effector(
             x_offset=x_offset,
             y_offset=y_offset,
             z_offset=z_offset,
             visualize=True,
-            mark_color=[0, 1, 0],  # 綠色標記
+            mark_color=[0, 1, 0],
         )
+        target_pos[0] = 0.2  # 若要固定深度
 
-        # # 生成移動軌跡，使用較小的步數使運動更平滑
-        robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
-            target_position=target_position, steps=3  # 使用較少的步數，移動更快速
+        # 5. 生成與執行軌跡
+        traj = self.pybullet_robot_controller.generateInterpolatedTrajectory(
+            target_position=target_pos, steps=10
         )
-
-        # # 執行移動
-        if robot_angle:
-            for i in robot_angle:
-                self.move_real_and_virtual(radian=i)
-                time.sleep(0.05)  # 縮短等待時間，使運動更流暢
-
-            return ArmGoal.Result(
-                success=True, message=f"Successfully followed {label}"
-            )
-        else:
+        if not traj:
             return ArmGoal.Result(
                 success=False, message="Failed to generate trajectory"
             )
 
+        for angle in traj:
+            self.move_real_and_virtual(radian=angle)
+            time.sleep(0.05)
+
+            # 6. 每步驟都再檢查一次
+            new_data = self.arm_commute_node.get_latest_object_coordinates(label=label)
+            if new_data and len(new_data) >= 3:
+                nd, ny, nz = new_data
+                if self._is_at_target(
+                    nd, ny, nz, target_depth, depth_threshold, lateral_threshold
+                ):
+                    print("中途已達到目標位置，提早停止")
+                    break
+
+        return ArmGoal.Result(success=True, message=f"Successfully followed {label}")
+
     def ik_move_func(self):
         # use ik move to obj position, but not excute
+        # This must use imu data
         imu_data = self.arm_commute_node.get_latest_imu_data()
         obj_position_data = self.arm_commute_node.get_latest_object_coordinates(
             label="fire"

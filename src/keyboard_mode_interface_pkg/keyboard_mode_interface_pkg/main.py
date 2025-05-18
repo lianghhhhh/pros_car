@@ -32,6 +32,7 @@ class MenuApp:
             "Automatic Arm Mode": {
                 "catch": None,
                 "wave": None,
+                "init_pose": None,
                 "arm_ik_move": None,
                 "test": None,
                 "up": None,

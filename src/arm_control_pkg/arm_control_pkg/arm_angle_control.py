@@ -36,6 +36,7 @@ class ArmAngleControl:
         joints_reset = self.arm_params["joints_reset"]
         for index in range(len(self.joint_positions)):
             self.joint_positions[index] = float(joints_reset[index])
+        return self.joint_positions
 
     def arm_index_change(self, index, angle):
         """Just change a joint angle to a specified value"""
