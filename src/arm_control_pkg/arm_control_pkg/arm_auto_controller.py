@@ -53,14 +53,16 @@ class ArmAutoController:
         return ArmGoal.Result(success=True, message="success")
 
     def test(self):
-        self.follow_obj(label="ball")
+        while 1:
+            if self.follow_obj(label="ball") == True:
+                break
         obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
             distance=0.4,
         )
         data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
         depth = data[0]
         obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-            distance=depth,
+            distance=depth + 0.05,
         )
         robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
             target_position=obj_pos
@@ -124,7 +126,7 @@ class ArmAutoController:
         depth_threshold = 0.05
         lateral_threshold = 0.05
         x_adjust_factor = 0.3
-        y_adjust_factor = 0.8
+        y_adjust_factor = 0.3
         z_adjust_factor = 0.3
 
         # 1. 讀座標
@@ -142,8 +144,8 @@ class ArmAutoController:
             depth_threshold,
             lateral_threshold,
         ):
-
-            return ArmGoal.Result(success=True, message="Already at target position")
+            print("檢查到已經在目標位置")
+            return True
 
         # 3. 計算偏移
         depth_diff = current_depth - target_depth
@@ -166,9 +168,7 @@ class ArmAutoController:
             target_position=target_pos, steps=10
         )
         if not traj:
-            return ArmGoal.Result(
-                success=False, message="Failed to generate trajectory"
-            )
+            return True
 
         for angle in traj:
             self.move_real_and_virtual(radian=angle)
@@ -182,9 +182,10 @@ class ArmAutoController:
                     nd, ny, nz, target_depth, depth_threshold, lateral_threshold
                 ):
                     print("中途已達到目標位置，提早停止")
+                    return True
                     break
 
-        return ArmGoal.Result(success=True, message=f"Successfully followed {label}")
+        # return True
 
     def ik_move_func(self):
         # use ik move to obj position, but not excute
