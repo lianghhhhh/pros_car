@@ -54,7 +54,7 @@ class PybulletRobotController:
         self.transformed_object_marker_ids = []
 
     def markPointInFrontOfEndEffector(
-        self, distance=0.3, z_offset=0.1, color=[0, 1, 1], visualize=True
+        self, distance=0.3, z_offset=0.2, color=[0, 1, 1], visualize=True
     ):
         """
         計算並可選地標記末端執行器前方指定距離的點。

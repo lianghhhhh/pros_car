@@ -44,8 +44,16 @@ class ArmAutoController:
             )
             return []  # Or raise an error
 
-    def init_pose(self):
+    def grap(self):
+        self.arm_agnle_control.arm_index_change(4, 10)
+        self.arm_commute_node.publish_arm_angle()
+
+    def init_pose(self, grap=False):
         angle = self.arm_agnle_control.arm_default_change()
+        if grap:
+            self.arm_agnle_control.arm_index_change(4, 30)
+            self.arm_commute_node.publish_arm_angle()
+            time.sleep(1.0)
         self.arm_commute_node.publish_arm_angle()
         joints_reset_degrees = angle
         joints_reset_radians = [math.radians(angle) for angle in joints_reset_degrees]
@@ -62,7 +70,7 @@ class ArmAutoController:
         data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
         depth = data[0]
         obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-            distance=depth + 0.05,
+            distance=depth + 0.1,
         )
         robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
             target_position=obj_pos
@@ -70,7 +78,9 @@ class ArmAutoController:
         for i in robot_angle:
             self.move_real_and_virtual(radian=i)
             time.sleep(0.1)
-
+        self.grap()
+        time.sleep(1.0)
+        self.init_pose(grap=True)
         # for obj forward move test------------------------------------------
 
         # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
@@ -124,7 +134,7 @@ class ArmAutoController:
     def follow_obj(self, label="ball", target_depth=0.3):
         # 參數設定
         depth_threshold = 0.05
-        lateral_threshold = 0.05
+        lateral_threshold = 0.07
         x_adjust_factor = 0.3
         y_adjust_factor = 0.3
         z_adjust_factor = 0.3
