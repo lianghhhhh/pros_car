@@ -14,6 +14,29 @@ class ArmAutoController:
         self.arm_commute_node = arm_commute_node
         self.arm_agnle_control = arm_agnle_control
 
+    def catch(self):
+        while 1:
+            if self.follow_obj(label="ball") == True:
+                break
+        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
+            distance=0.4,
+        )
+        data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
+        depth = data[0]
+        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
+            distance=depth + 0.1,
+        )
+        robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
+            target_position=obj_pos
+        )
+        for i in robot_angle:
+            self.move_real_and_virtual(radian=i)
+            time.sleep(0.1)
+        self.grap()
+        time.sleep(1.0)
+        self.init_pose(grap=True)
+        return ArmGoal.Result(success=True, message="success")
+
     def arm_wave(self):
         pass
 
@@ -61,26 +84,7 @@ class ArmAutoController:
         return ArmGoal.Result(success=True, message="success")
 
     def test(self):
-        while 1:
-            if self.follow_obj(label="ball") == True:
-                break
-        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-            distance=0.4,
-        )
-        data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
-        depth = data[0]
-        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-            distance=depth + 0.1,
-        )
-        robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
-            target_position=obj_pos
-        )
-        for i in robot_angle:
-            self.move_real_and_virtual(radian=i)
-            time.sleep(0.1)
-        self.grap()
-        time.sleep(1.0)
-        self.init_pose(grap=True)
+
         # for obj forward move test------------------------------------------
 
         # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(

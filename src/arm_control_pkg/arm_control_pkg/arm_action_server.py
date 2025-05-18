@@ -79,6 +79,8 @@ class ArmActionServer(Node):
         """
         if mode == "wave":
             return self.arm_auto_controller.arm_wave
+        elif mode == "catch":
+            return self.arm_auto_controller.catch
         elif mode == "arm_ik_move":
             return self.arm_auto_controller.arm_ik_move
         elif mode == "test":

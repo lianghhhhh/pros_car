@@ -5,6 +5,8 @@ class ModeManager:
     def update_mode(self, pressed_key_info):
         title = pressed_key_info.split(":")[-2].replace(" ", "")
         subtitle = pressed_key_info.split(":")[-1]
+        if subtitle == "down" or subtitle == "upwn":
+            return
         if "Control Vehicle" in pressed_key_info:
             car_control_signal = f"{title}:{subtitle}"
             if title == "Manual_Nav":
@@ -23,7 +25,8 @@ class ModeManager:
         elif "Automatic Arm Mode" in pressed_key_info:
             arm_control_signal = f"{title}:{subtitle}"
             if (
-                title == "test"
+                title == "catch"
+                or title == "wave"
                 or title == "arm_ik_move"
                 or title == "init_pose"
                 or title == "up"
