@@ -46,6 +46,45 @@ class NavigationController:
     def reset_index(self):
         self.index = 0
 
+    def customize_nav(self):
+        result = self.check_prerequisites()
+
+        if isinstance(result, NavGoal.Result):
+            # 有錯誤就直接回傳結果，不繼續導航流程
+            return result
+
+        # 正常情況才解包
+        car_position, car_orientation, path_points, goal_pose = result
+        car_position, car_orientation, goal_pose = self.data_init(
+            car_position, car_orientation, goal_pose
+        )
+
+        target_distance = cal_distance(car_position, goal_pose)
+        if target_distance < 0.5:
+            self.car_control_node.publish_control("STOP")
+            return NavGoal.Result(
+                success=True,
+                message="Navigation goal reached successfully. Final distance",
+            )
+        else:
+            target_points, orientation_points = self.get_next_target_point(
+                car_position=car_position, path_points=path_points
+            )
+            diff_angle = calculate_diff_angle(
+                car_position, car_orientation, target_points
+            )
+            action_key = self.choose_action(diff_angle)
+            self.car_control_node.publish_control(action_key)
+
+    def choose_action(self, diff_angle):
+        if diff_angle < 20 and diff_angle > -20:
+            action_key = "FORWARD"
+        elif diff_angle < -20 and diff_angle > -180:
+            action_key = "CLOCKWISE_ROTATION"
+        elif diff_angle > 20 and diff_angle < 180:
+            action_key = "COUNTERCLOCKWISE_ROTATION"
+        return action_key
+
     def manual_nav(self):
         result = self.check_prerequisites()
 

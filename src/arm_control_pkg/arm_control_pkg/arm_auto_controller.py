@@ -117,6 +117,10 @@ class ArmAutoController:
         # self.pybullet_robot_controller.draw_link_axes(link_name="camera_1")
         return ArmGoal.Result(success=True, message="success")
 
+    def look_up(self):
+        self.arm_agnle_control.arm_index_change(2, 140)
+        self.arm_commute_node.publish_arm_angle()
+
     def _is_at_target(
         self,
         depth: float,

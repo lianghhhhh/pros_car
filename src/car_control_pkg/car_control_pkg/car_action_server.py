@@ -3,7 +3,7 @@ from rclpy.node import Node
 from rclpy.action import ActionServer, GoalResponse, CancelResponse
 from action_interface.action import NavGoal
 from car_control_pkg.car_control_common import BaseCarControlNode
-
+import functools  # Import functools
 from car_control_pkg.car_nav_controller import NavigationController
 
 
@@ -43,12 +43,14 @@ class NavigationActionServer(Node):
     def execute_callback(self, goal_handle):
         """Navigation action callback"""
         result = NavGoal.Result()
-
+        mode = goal_handle.request.mode
+        print("mode : ", mode)
         rate = self.create_rate(10)
         self.nav_controller.reset_index()
         while rclpy.ok():
             # First give executor time to process callbacks
             rate.sleep()
+            car_auto_method = self._select_car_auto_method(mode)
             if goal_handle.is_cancel_requested:
                 self.get_logger().info("Navigation canceled by user")
                 self.car_control_node.publish_control("STOP")
@@ -56,7 +58,7 @@ class NavigationActionServer(Node):
                 goal_handle.canceled()
                 break
 
-            nav_result = self.nav_controller.manual_nav()
+            nav_result = car_auto_method()
             if isinstance(nav_result, NavGoal.Result):
                 if nav_result.success:
                     self.get_logger().info(
@@ -76,3 +78,14 @@ class NavigationActionServer(Node):
             goal_handle.publish_feedback(feedback_msg)
 
         return result
+
+    def _select_car_auto_method(self, mode: str):
+        """
+        根據模式選擇對應的 arm_auto_controller 方法或創建一個可調用對象。
+        """
+        if mode == "Manual_Nav":
+            return self.nav_controller.manual_nav
+        elif mode == "Customize_Nav":
+            return self.nav_controller.customize_nav
+        else:
+            self.get_logger().error(f"Unknown mode requested: {mode}")  # Log error here

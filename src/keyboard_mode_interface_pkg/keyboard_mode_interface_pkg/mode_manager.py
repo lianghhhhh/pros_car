@@ -9,13 +9,13 @@ class ModeManager:
             return
         if "Control Vehicle" in pressed_key_info:
             car_control_signal = f"{title}:{subtitle}"
-            if title == "Manual_Nav":
+            if title == "Manual_Nav" or title == "Customize_Nav":
                 if subtitle == "q":
                     self.ros_manager.car_action_client.cancel_navigation_goal()
                 else:
-                    self.ros_manager.car_action_client.send_navigation_goal(
-                        mode="Manual_Nav"
-                    )
+                    if title == "Customize_Nav":
+                        self.ros_manager.arm_action_client.send_arm_mode(mode="look_up")
+                    self.ros_manager.car_action_client.send_navigation_goal(mode=title)
             else:
                 self.ros_manager.publish_car_signal(car_control_signal)
 

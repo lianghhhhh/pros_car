@@ -6,6 +6,7 @@ from nav_msgs.msg import Path
 from car_control_pkg.utils import get_action_mapping, parse_control_signal
 import copy
 from car_control_pkg.nav2_utils import cal_distance
+import json
 
 
 class CarControlPublishers:
@@ -35,11 +36,10 @@ class CarControlPublishers:
         If the action is a list, it will be used as the velocity array directly.
         """
         if not isinstance(action, str):
-            vel = [action[0],action[1],action[0],action[1]]
+            vel = [action[0], action[1], action[0], action[1]]
 
         else:
             vel = get_action_mapping(action)
-
 
         if front_wheel_pub is None:
             # Only rear wheel publisher is available
@@ -103,10 +103,7 @@ class BaseCarControlNode(Node):
         )
 
         self.cmd_vel_sub = self.create_subscription(
-            Twist,
-            '/cmd_vel',
-            self.cmd_vel_callback,
-            10
+            Twist, "/cmd_vel", self.cmd_vel_callback, 10
         )
 
         self.camera_depth_sub = self.create_subscription(
@@ -117,7 +114,7 @@ class BaseCarControlNode(Node):
         )
 
         self.yolo_sub = self.create_subscription(
-            Float32MultiArray, "/yolo/target_info", self._yolo_callback, 10
+            String, "/yolo/object/offset", self._yolo_callback, 10
         )
 
         self.get_logger().info("Navigation subscribers created")
@@ -140,8 +137,59 @@ class BaseCarControlNode(Node):
         self.latest_camera_depth = list(msg.data)
 
     def _yolo_callback(self, msg):
-        """Store latest YOLO target info"""
-        self.latest_yolo_info = list(msg.data)
+        """ "Callback function for processing incoming YOLO object offset data."""
+        try:
+            # Extract the JSON string from the message data
+            json_string = msg.data
+            # Parse the JSON string into a Python list of dictionaries
+            object_list = json.loads(json_string)
+
+            # Create a new dictionary mapping labels to coordinates
+            new_coordinates = {}
+            for item in object_list:
+                if isinstance(item, dict) and "label" in item and "offset_flu" in item:
+                    label = item["label"]
+                    coordinates = item["offset_flu"]
+                    # Ensure coordinates are a list of floats
+                    if isinstance(coordinates, list) and len(coordinates) == 3:
+                        try:
+                            float_coords = [float(c) for c in coordinates]
+                            new_coordinates[label] = float_coords
+                        except (ValueError, TypeError):
+                            self.get_logger().warn(
+                                f"Invalid coordinate format for label '{label}': {coordinates}"
+                            )
+                    else:
+                        self.get_logger().warn(
+                            f"Unexpected coordinate format for label '{label}': {coordinates}"
+                        )
+                else:
+                    self.get_logger().warn(
+                        f"Skipping invalid item in JSON list: {item}"
+                    )
+
+            # Update the stored coordinates
+            self.object_coordinates = new_coordinates
+            # self.get_logger().info(
+            #     f"Updated object coordinates: {self.object_coordinates}"
+            # )
+        except json.JSONDecodeError as e:
+            self.get_logger().error(f"Failed to decode JSON string: {e}")
+            self.get_logger().error(f"Received string: {msg.data}")
+        except Exception as e:
+            self.get_logger().error(f"Error processing YOLO offset message: {e}")
+
+    def get_latest_object_coordinates(self, label: str = None) -> dict:
+        """
+        回傳解析後的 YOLO 物體偏移字典，
+        格式 { label: [x, y, z], … }，
+        若還沒收到就回空 dict。
+        """
+        if label is None:
+            # 全部回傳
+            return self.object_coordinates
+        # 單一物體回傳
+        return self.object_coordinates.get(label, None)
 
     def get_goal_pose(self):
         """Get goal position or None if unavailable"""
@@ -185,7 +233,6 @@ class BaseCarControlNode(Node):
         speed_msg = Float32MultiArray()
         speed_msg.data = [v_left, v_right]
         self.latest_cmd_vel = [v_left, v_right]
-
 
     def get_cmd_vel_data(self):
         return self.latest_cmd_vel

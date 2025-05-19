@@ -85,6 +85,8 @@ class ArmActionServer(Node):
             return self.arm_auto_controller.arm_ik_move
         elif mode == "test":
             return self.arm_auto_controller.test
+        elif mode == "look_up":
+            return self.arm_auto_controller.look_up
         elif mode == "init_pose":
             return self.arm_auto_controller.init_pose
         elif mode in ["up", "down", "right", "left"]:
