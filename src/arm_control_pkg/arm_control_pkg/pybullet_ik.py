@@ -21,7 +21,6 @@ from ament_index_python.packages import get_package_share_directory
 import xml.etree.ElementTree as ET
 import math
 from scipy.spatial.transform import Rotation as R
-from transforms3d.quaternions import quat2mat
 import pybullet_data
 
 
