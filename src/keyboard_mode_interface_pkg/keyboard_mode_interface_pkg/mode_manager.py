@@ -13,9 +13,10 @@ class ModeManager:
                 if subtitle == "q":
                     self.ros_manager.car_action_client.cancel_navigation_goal()
                 else:
-                    if title == "Customize_Nav":
-                        self.ros_manager.arm_action_client.send_arm_mode(mode="look_up")
+                    # if title == "Customize_Nav":
+                        # self.ros_manager.arm_action_client.send_arm_mode(mode="catch")
                     self.ros_manager.car_action_client.send_navigation_goal(mode=title)
+                    
             else:
                 self.ros_manager.publish_car_signal(car_control_signal)
 

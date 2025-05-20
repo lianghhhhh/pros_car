@@ -112,7 +112,7 @@ class BaseCarControlNode(Node):
             self._camera_depth_callback,
             10,
         )
-
+        self.object_coordinates = {}
         self.yolo_sub = self.create_subscription(
             String, "/yolo/object/offset", self._yolo_callback, 10
         )

@@ -48,42 +48,35 @@ class NavigationController:
 
     def customize_nav(self):
         result = self.check_prerequisites()
+        coordinate = self.car_control_node.get_latest_object_coordinates()
+        if coordinate == {} or not coordinate:
+            self.manual_nav()
 
-        if isinstance(result, NavGoal.Result):
-            # 有錯誤就直接回傳結果，不繼續導航流程
-            return result
-
-        # 正常情況才解包
-        car_position, car_orientation, path_points, goal_pose = result
-        car_position, car_orientation, goal_pose = self.data_init(
-            car_position, car_orientation, goal_pose
-        )
-
-        target_distance = cal_distance(car_position, goal_pose)
-        if target_distance < 0.5:
-            self.car_control_node.publish_control("STOP")
-            return NavGoal.Result(
-                success=True,
-                message="Navigation goal reached successfully. Final distance",
-            )
+            # self.car_control_node.publish_control("STOP")
+            pass
         else:
-            target_points, orientation_points = self.get_next_target_point(
-                car_position=car_position, path_points=path_points
-            )
-            diff_angle = calculate_diff_angle(
-                car_position, car_orientation, target_points
-            )
-            action_key = self.choose_action(diff_angle)
-            self.car_control_node.publish_control(action_key)
-
-    def choose_action(self, diff_angle):
-        if diff_angle < 20 and diff_angle > -20:
-            action_key = "FORWARD"
-        elif diff_angle < -20 and diff_angle > -180:
-            action_key = "CLOCKWISE_ROTATION"
-        elif diff_angle > 20 and diff_angle < 180:
-            action_key = "COUNTERCLOCKWISE_ROTATION"
-        return action_key
+            y_offset = coordinate["ball"][1]
+            object_depth = coordinate["ball"][0]
+            if object_depth < 0.3:
+                self.car_control_node.publish_control("STOP")
+                return NavGoal.Result(
+                    success=True,
+                    message="Navigation goal reached successfully. Final distance",
+                )
+            action = self.choose_action_y_offset(y_offset)
+            self.car_control_node.publish_control(action)
+            
+        # print(self.car_control_node.get_latest_object_coordinates())
+    def choose_action_y_offset(self, y_offset):
+        if y_offset > -0.1 and y_offset < 0.1:
+            return "FORWARD_SLOW"
+            self.car_control_node.publish_control("FORWARD_SLOW")
+        elif y_offset > 0.1: # 物體在左
+            return "COUNTERCLOCKWISE_ROTATION_SLOW"
+            self.car_control_node.publish_control("COUNTERCLOCKWISE_ROTATION_SLOW")
+        elif y_offset < -0.1:
+            return "CLOCKWISE_ROTATION_SLOW"
+            self.car_control_node.publish_control("CLOCKWISE_ROTATION_SLOW")
 
     def manual_nav(self):
         result = self.check_prerequisites()
