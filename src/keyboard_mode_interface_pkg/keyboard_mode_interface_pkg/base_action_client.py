@@ -32,6 +32,38 @@ class BaseActionClient:
         future.add_done_callback(self.goal_response_callback)
         return True
 
+    def send_and_wait(self, mode):
+        goal_msg = self._create_goal_msg(mode)
+
+        if not self.action_client.wait_for_server(timeout_sec=1.0):
+            self._logger.error(f"{self._server_name} not available!")
+            return False
+
+        # 1) 發出去，拿到 goal_handle_future
+        send_goal_future = self.action_client.send_goal_async(
+            goal_msg, feedback_callback=self.feedback_callback
+        )
+        # 2) 同步等待「goal handle」建立完成
+        rclpy.spin_until_future_complete(self._node, send_goal_future)
+        goal_handle = send_goal_future.result()
+        if not goal_handle.accepted:
+            self._logger.info("Goal rejected")
+            return False
+
+        # 3) 拿到結果 future
+        get_result_future = goal_handle.get_result_async()
+        # 4) 同步等待結果
+        rclpy.spin_until_future_complete(self._node, get_result_future)
+        result = get_result_future.result()
+
+        # 5) 處理結果
+        handle_action_result(
+            node=self._node,
+            status=result.status,
+            result=result.result,
+        )
+        return result.status == GoalStatus.STATUS_SUCCEEDED
+
     def cancel_goal(self):
         if self.current_goal_handle is None:
             self._logger.warn("No active goal to cancel.")
