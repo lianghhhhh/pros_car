@@ -13,10 +13,20 @@ class ModeManager:
                 if subtitle == "q":
                     self.ros_manager.car_action_client.cancel_navigation_goal()
                 else:
-                    # if title == "Customize_Nav":
-                        # self.ros_manager.arm_action_client.send_arm_mode(mode="catch")
+                    # 發送導航目標
                     self.ros_manager.car_action_client.send_navigation_goal(mode=title)
-                    
+
+                    # 創建一個 lambda 函數作為後續動作，注意這個函數不會立即執行
+                    next_action = (
+                        lambda: self.ros_manager.arm_action_client.send_arm_mode(
+                            mode="right"
+                        )
+                    )
+
+                    # 設置後續動作，當導航完成時會調用這個 lambda
+                    self.ros_manager.car_action_client.start_next_action(next_action)
+
+                    print("end")
             else:
                 self.ros_manager.publish_car_signal(car_control_signal)
 
