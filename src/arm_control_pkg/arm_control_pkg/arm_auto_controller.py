@@ -17,23 +17,28 @@ class ArmAutoController:
 
     def catch(self):
         while self.depth > 0.3:
+            print(self.depth)
             try:
                 self.depth = self.arm_commute_node.get_latest_object_coordinates(label="ball")[0]
             except:
-                pass
-            self.follow_obj(label="ball") 
+                continue
+        while 1: 
+            print("follow_obj")
+            if self.follow_obj(label="ball")  == True:
+                break
             # if self.follow_obj(label="ball") == True:
             #     break
-        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-            distance=0.4,
-        )
+        self.depth = 100.0
+        # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
+        #     distance=0.4,z_offset = 0.05
+        # )
         data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
         depth = data[0]
         obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-            distance=depth + 0.1,z_offset=0.1
+            distance=depth + 0.05,z_offset=0.05
         )
         robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
-            target_position=obj_pos
+            target_position=obj_pos,steps=10
         )
         for i in robot_angle:
             self.move_real_and_virtual(radian=i)
@@ -141,8 +146,8 @@ class ArmAutoController:
         """
         return (
             # abs(depth - target_depth) <= depth_thresh
-            abs(y) <= lateral_thresh
-            and abs(z) <= lateral_thresh
+            abs(y) <= 0.2
+            and abs(z) <= 0.7
         )
 
     def follow_obj(self, label="ball", target_depth=0.3):

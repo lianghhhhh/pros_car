@@ -50,31 +50,39 @@ class NavigationController:
         result = self.check_prerequisites()
         coordinate = self.car_control_node.get_latest_object_coordinates()
         if coordinate == {} or not coordinate:
-            self.manual_nav()
-
+            signal = self.manual_nav()
+            if isinstance(signal, NavGoal.Result):
+                if signal.success:
+                    self.car_control_node.publish_control("COUNTERCLOCKWISE_ROTATION_SLOW")
             # self.car_control_node.publish_control("STOP")
             pass
         else:
             y_offset = coordinate["ball"][1]
             object_depth = coordinate["ball"][0]
             if object_depth < 0.3:
-                self.car_control_node.publish_control("STOP")
+                for i in range(5):
+                    self.car_control_node.publish_control("STOP")
+                    time.sleep(0.1)
                 return NavGoal.Result(
                     success=True,
                     message="Navigation goal reached successfully. Final distance",
                 )
-            action = self.choose_action_y_offset(y_offset)
+            action = self.choose_action_y_offset(y_offset,object_depth)
             self.car_control_node.publish_control(action)
             
         # print(self.car_control_node.get_latest_object_coordinates())
-    def choose_action_y_offset(self, y_offset):
-        if y_offset > -0.1 and y_offset < 0.1:
+    def choose_action_y_offset(self, y_offset, object_depth):
+        if object_depth >= 0.5:
+            limit = 0.5
+        elif object_depth <= 0.5:
+            limit = 0.1
+        if y_offset > -limit and y_offset < limit:
             return "FORWARD_SLOW"
             self.car_control_node.publish_control("FORWARD_SLOW")
-        elif y_offset > 0.1: # 物體在左
+        elif y_offset >= limit: # 物體在左
             return "COUNTERCLOCKWISE_ROTATION_SLOW"
             self.car_control_node.publish_control("COUNTERCLOCKWISE_ROTATION_SLOW")
-        elif y_offset < -0.1:
+        elif y_offset <= -limit:
             return "CLOCKWISE_ROTATION_SLOW"
             self.car_control_node.publish_control("CLOCKWISE_ROTATION_SLOW")
 
