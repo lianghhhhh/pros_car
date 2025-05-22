@@ -28,6 +28,8 @@ class ArmAutoController:
                 break
             # if self.follow_obj(label="ball") == True:
             #     break
+
+        # reset depth
         self.depth = 100.0
         # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
         #     distance=0.4,z_offset = 0.05
@@ -35,7 +37,7 @@ class ArmAutoController:
         data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
         depth = data[0]
         obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-            distance=depth + 0.05,z_offset=0.05
+            distance=depth + 0.05,z_offset=0.1
         )
         robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
             target_position=obj_pos,steps=10
@@ -47,6 +49,10 @@ class ArmAutoController:
         time.sleep(1.0)
         self.init_pose(grap=True)
         return ArmGoal.Result(success=True, message="success")
+
+    def car2_position(self):
+        # 給 car2 的座標
+        pass
 
     def arm_wave(self):
         pass
@@ -146,8 +152,8 @@ class ArmAutoController:
         """
         return (
             # abs(depth - target_depth) <= depth_thresh
-            abs(y) <= 0.2
-            and abs(z) <= 0.7
+            abs(y) <= 0.02
+            and abs(z) <= 0.07
         )
 
     def follow_obj(self, label="ball", target_depth=0.3):

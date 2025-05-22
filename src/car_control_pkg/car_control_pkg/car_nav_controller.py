@@ -3,7 +3,7 @@ from car_control_pkg.nav2_utils import (
     calculate_diff_angle,
 )
 from action_interface.action import NavGoal
-
+import time
 
 class NavigationController:
     def __init__(self, car_control_node):
@@ -63,6 +63,7 @@ class NavigationController:
                 for i in range(5):
                     self.car_control_node.publish_control("STOP")
                     time.sleep(0.1)
+                self.car_control_node.clear_plan()
                 return NavGoal.Result(
                     success=True,
                     message="Navigation goal reached successfully. Final distance",
