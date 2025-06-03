@@ -3,7 +3,7 @@ from action_interface.action import ArmGoal
 import time
 import math
 from typing import Tuple, List
-
+from arm_control_pkg.utils import get_yaw_from_quaternion, normalize_angle
 
 class ArmAutoController:
     def __init__(
@@ -16,47 +16,68 @@ class ArmAutoController:
         self.depth = 100.0
 
     def catch(self):
-        while self.depth > 0.3:
-            print(self.depth)
-            try:
-                self.depth = self.arm_commute_node.get_latest_object_coordinates(label="ball")[0]
-            except:
-                continue
-        while 1: 
-            print("follow_obj")
-            if self.follow_obj(label="ball")  == True:
-                break
-            # if self.follow_obj(label="ball") == True:
-            #     break
+        # while self.depth > 0.3:
+        #     print(self.depth)
+        #     try:
+        #         self.depth = self.arm_commute_node.get_latest_object_coordinates(label="ball")[0]
+        #     except:
+        #         continue
+        # while 1: 
+        #     print("follow_obj")
+        #     if self.follow_obj(label="ball")  == True:
+        #         break
+        #     # if self.follow_obj(label="ball") == True:
+        #     #     break
 
-        # reset depth
-        self.depth = 100.0
+        # # reset depth
+        # self.depth = 100.0
+        # # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
+        # #     distance=0.4,z_offset = 0.05
+        # # )
+        # data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
+        # depth = data[0]
         # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-        #     distance=0.4,z_offset = 0.05
+        #     distance=depth + 0.05,z_offset=0.1
         # )
-        data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
-        depth = data[0]
-        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-            distance=depth + 0.05,z_offset=0.1
-        )
-        robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
-            target_position=obj_pos,steps=10
-        )
-        for i in robot_angle:
-            self.move_real_and_virtual(radian=i)
-            time.sleep(0.1)
-        self.grap()
-        time.sleep(1.0)
-        self.init_pose(grap=True)
-        time.sleep(1.0)
+        # robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
+        #     target_position=obj_pos,steps=10
+        # )
+        # for i in robot_angle:
+        #     self.move_real_and_virtual(radian=i)
+        #     time.sleep(0.1)
+        # self.grap()
+        # time.sleep(1.0)
+        # self.init_pose(grap=True)
+        # time.sleep(1.0)
         self.rotate_car()
         return ArmGoal.Result(success=True, message="success")
 
     def rotate_car(self):
-        self.arm_commute_node.publish_control(vel=[5.0,-5.0,5.0,-5.0])
-        time.sleep(5.0)
+        # 取得當前車體朝向
+        _, rotation = self.arm_commute_node.get_car_position_and_orientation()
+        current_yaw = get_yaw_from_quaternion(rotation)
+
+        # 設定目標朝向（反向 180 度）
+        target_yaw = normalize_angle(current_yaw + math.pi)
+
+        # 開始旋轉
+        self.arm_commute_node.publish_control(vel=[5.0, -5.0, 5.0, -5.0])
+
+        while True:
+            _, rotation = self.arm_commute_node.get_car_position_and_orientation()
+            yaw = get_yaw_from_quaternion(rotation)
+            yaw_error = normalize_angle(target_yaw - yaw)
+
+            print(f"Current Yaw: {math.degrees(yaw):.2f}, Target: {math.degrees(target_yaw):.2f}, Error: {math.degrees(yaw_error):.2f}")
+
+            if abs(yaw_error) < math.radians(5):  # 誤差小於 5 度即停止
+                break
+            time.sleep(0.1)
+
         for i in range(5):
-            self.arm_commute_node.publish_control(vel=[0.0,0.0,0.0,0.0])
+            # 停止轉動
+            self.arm_commute_node.publish_control(vel=[0.0, 0.0, 0.0, 0.0])
+            time.sleep(0.1)
 
     def car2_position(self):
         # 給 car2 的座標
@@ -111,36 +132,6 @@ class ArmAutoController:
     def test(self):
         print("!!!!!")
         self.rotate_car()
-        # for obj forward move test------------------------------------------
-
-        # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-        #     distance=0.4,
-        # )
-        # robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
-        #     target_position=obj_pos
-        # )
-
-        # for obj reach test
-        # ans = self.pybullet_robot_controller.is_link_close_to_position(
-        #     link_name="base_link", target_position=obj_pos, threshold=0.6
-        # )
-
-        # for i in robot_angle:
-        #     self.pybullet_robot_controller.setJointPosition(position=i)
-        #     time.sleep(0.1)
-
-        # ----------------------------------------------------------------
-
-        # self.pybullet_robot_controller.setJointPosition(position=robot_angle)
-
-        # move test
-        # t = self.pybullet_robot_controller.generateInterpolatedTrajectory(
-        #     [0.3, 0.3, 0.3]
-        # )
-        # for i in t:
-        #     self.pybullet_robot_controller.setJointPosition(position=i)
-        #     time.sleep(0.1)
-        # self.pybullet_robot_controller.draw_link_axes(link_name="camera_1")
         return ArmGoal.Result(success=True, message="success")
 
     def look_up(self):

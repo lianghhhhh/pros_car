@@ -6,6 +6,7 @@ from sensor_msgs.msg import Imu  # Import the Imu message type
 import math
 import numpy as np
 import json  # Import the json module
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Twist
 
 # can change one index angle
 # chnage the angle of all joints
@@ -64,7 +65,29 @@ class ArmCummuteNode(Node):
             f"Subscribing to IMU topic: {self.arm_params['global']['imu_receive_topic']}"
         )
         # --------------------------
+        # --- Add AMCL Pose Subscriber ---
+        self.latest_amcl_pose = None
+        self.amcl_sub = self.create_subscription(
+            PoseWithCovarianceStamped, "/amcl_pose", self._amcl_callback, 10
+        )
         
+    
+    def _amcl_callback(self, msg):
+        """Store latest AMCL pose"""
+        self.latest_amcl_pose = msg
+    
+    def get_car_position_and_orientation(self):
+        """
+        Get current car position and orientation
+
+        Returns:
+            Tuple containing (position, orientation) or (None, None) if data unavailable
+        """
+        if self.latest_amcl_pose:
+            position = self.latest_amcl_pose.pose.pose.position
+            orientation = self.latest_amcl_pose.pose.pose.orientation
+            return position, orientation
+        return None, None
     
     def imu_callback(self, msg: Imu):
         """Callback function for processing incoming IMU data."""
