@@ -73,6 +73,7 @@ class BaseCarControlNode(Node):
 
         # Publisher to clear the plan topic
         self.plan_clear_pub = self.create_publisher(Path, '/plan', 10)
+        self.goal_clear_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
 
         # Create subscription to control signals
         self.subscription = CarControlPublishers.create_control_subscription(
@@ -90,6 +91,26 @@ class BaseCarControlNode(Node):
         # Create navigation data subscribers if enabled
         if enable_nav_subscribers:
             self._create_navigation_subscribers()
+            
+    def clear_goal_pose(self):
+        """
+        Clear the /goal_pose topic by publishing an empty PoseStamped message
+        and resetting internal stored goal pose.
+        """
+        empty = PoseStamped()
+        empty.header.stamp = self.get_clock().now().to_msg()
+        empty.header.frame_id = ''
+        # Position and orientation default to zero
+        empty.pose.position.x = 0.0
+        empty.pose.position.y = 0.0
+        empty.pose.position.z = 0.0
+        empty.pose.orientation.x = 0.0
+        empty.pose.orientation.y = 0.0
+        empty.pose.orientation.z = 0.0
+        empty.pose.orientation.w = 1.0
+        self.goal_clear_pub.publish(empty)
+        self.latest_goal_pose = None
+        self.get_logger().info('Cleared /goal_pose topic')
 
     def clear_plan(self):
         """
@@ -103,7 +124,7 @@ class BaseCarControlNode(Node):
         self.plan_clear_pub.publish(empty)
         self.latest_global_plan = None
         self.get_logger().info('Cleared /plan topic')
-        
+
     def _create_navigation_subscribers(self):
         """Create all subscribers needed for navigation"""
         self.amcl_sub = self.create_subscription(

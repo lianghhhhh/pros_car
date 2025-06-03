@@ -24,6 +24,17 @@ class ArmCummuteNode(Node):
             JointTrajectoryPoint, self.arm_params["global"]["arm_topic"], 10
         )
 
+        self.rear_wheel_pub = self.create_publisher(
+            Float32MultiArray,
+            'car_C_rear_wheel',
+            10
+        )
+        self.front_wheel_pub = self.create_publisher(
+            Float32MultiArray,
+            'car_C_front_wheel',
+            10
+        )
+
         # --- Add IMU Subscriber ---
         self.latest_imu_data = None
         self.imu_sub = self.create_subscription(
@@ -47,13 +58,14 @@ class ArmCummuteNode(Node):
                 "yolo_object_offset_receive_topic"
             ],  # Get topic name from config
             self.yolo_object_offset_callback,
-            10,
+            1,
         )
         self.get_logger().info(
             f"Subscribing to IMU topic: {self.arm_params['global']['imu_receive_topic']}"
         )
         # --------------------------
-
+        
+    
     def imu_callback(self, msg: Imu):
         """Callback function for processing incoming IMU data."""
         # Example: Log the orientation quaternion
@@ -69,6 +81,17 @@ class ArmCummuteNode(Node):
         """
         orientation = self.latest_imu_data.orientation
         return [orientation.x, orientation.y, orientation.z, orientation.w]
+
+    
+
+    def publish_control(self, vel):
+        # Both publishers are available
+        rear_msg = Float32MultiArray()
+        front_msg = Float32MultiArray()
+        front_msg.data = vel[0:2]
+        rear_msg.data = vel[2:4]
+        self.rear_wheel_pub.publish(rear_msg)
+        self.front_wheel_pub.publish(front_msg)
 
     def yolo_object_offset_callback(self, msg: String):
         """Callback function for processing incoming YOLO object offset data."""

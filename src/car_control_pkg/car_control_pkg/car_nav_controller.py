@@ -8,6 +8,7 @@ import time
 class NavigationController:
     def __init__(self, car_control_node):
         self.car_control_node = car_control_node
+        self.nav_end_flag = 0 
 
     def check_prerequisites(self):
         """Check if all prerequisites for navigation are met"""
@@ -50,20 +51,24 @@ class NavigationController:
         result = self.check_prerequisites()
         coordinate = self.car_control_node.get_latest_object_coordinates()
         if coordinate == {} or not coordinate:
-            signal = self.manual_nav()
-            if isinstance(signal, NavGoal.Result):
-                if signal.success:
+            if self.nav_end_flag == 0:
+                self.signal = self.manual_nav()
+            else:
+                if self.nav_end_flag == 1:
+                    self.car_control_node.clear_plan()
+                    self.car_control_node.clear_goal_pose()
                     self.car_control_node.publish_control("COUNTERCLOCKWISE_ROTATION_SLOW")
-            # self.car_control_node.publish_control("STOP")
-            pass
+            # self.car_control_node.publish_control("STOP")                
         else:
+            self.nav_end_flag = 0
             y_offset = coordinate["ball"][1]
             object_depth = coordinate["ball"][0]
             if object_depth < 0.3:
-                for i in range(5):
+                for i in range(10):
                     self.car_control_node.publish_control("STOP")
                     time.sleep(0.1)
                 self.car_control_node.clear_plan()
+                self.car_control_node.clear_goal_pose()
                 return NavGoal.Result(
                     success=True,
                     message="Navigation goal reached successfully. Final distance",
@@ -102,6 +107,7 @@ class NavigationController:
 
         target_distance = cal_distance(car_position, goal_pose)
         if target_distance < 0.5:
+            self.nav_end_flag = 1
             self.car_control_node.publish_control("STOP")
             return NavGoal.Result(
                 success=True,

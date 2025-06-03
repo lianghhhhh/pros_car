@@ -48,7 +48,15 @@ class ArmAutoController:
         self.grap()
         time.sleep(1.0)
         self.init_pose(grap=True)
+        time.sleep(1.0)
+        self.rotate_car()
         return ArmGoal.Result(success=True, message="success")
+
+    def rotate_car(self):
+        self.arm_commute_node.publish_control(vel=[5.0,-5.0,5.0,-5.0])
+        time.sleep(5.0)
+        for i in range(5):
+            self.arm_commute_node.publish_control(vel=[0.0,0.0,0.0,0.0])
 
     def car2_position(self):
         # 給 car2 的座標
@@ -101,7 +109,8 @@ class ArmAutoController:
         return ArmGoal.Result(success=True, message="success")
 
     def test(self):
-
+        print("!!!!!")
+        self.rotate_car()
         # for obj forward move test------------------------------------------
 
         # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
@@ -153,7 +162,7 @@ class ArmAutoController:
         return (
             # abs(depth - target_depth) <= depth_thresh
             abs(y) <= 0.02
-            and abs(z) <= 0.07
+            and abs(z) <= 0.1
         )
 
     def follow_obj(self, label="ball", target_depth=0.3):
