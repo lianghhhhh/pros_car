@@ -16,41 +16,50 @@ class ArmAutoController:
         self.depth = 100.0
 
     def catch(self):
-        # while self.depth > 0.3:
-        #     print(self.depth)
-        #     try:
-        #         self.depth = self.arm_commute_node.get_latest_object_coordinates(label="ball")[0]
-        #     except:
-        #         continue
-        # while 1: 
-        #     print("follow_obj")
-        #     if self.follow_obj(label="ball")  == True:
-        #         break
-        #     # if self.follow_obj(label="ball") == True:
-        #     #     break
+        while self.depth > 0.3:
+            print(self.depth)
+            try:
+                self.depth = self.arm_commute_node.get_latest_object_coordinates(label="ball")[0]
+            except:
+                continue
+        while 1: 
+            print("follow_obj")
+            if self.follow_obj(label="ball")  == True:
+                break
+            # if self.follow_obj(label="ball") == True:
+            #     break
 
-        # # reset depth
-        # self.depth = 100.0
-        # # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-        # #     distance=0.4,z_offset = 0.05
-        # # )
-        # data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
-        # depth = data[0]
+        # reset depth
+        self.depth = 100.0
         # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-        #     distance=depth + 0.05,z_offset=0.1
+        #     distance=0.4,z_offset = 0.05
         # )
-        # robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
-        #     target_position=obj_pos,steps=10
-        # )
-        # for i in robot_angle:
-        #     self.move_real_and_virtual(radian=i)
-        #     time.sleep(0.1)
-        # self.grap()
-        # time.sleep(1.0)
-        # self.init_pose(grap=True)
-        # time.sleep(1.0)
+        data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
+        depth = data[0]
+        obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
+            distance=depth + 0.05,z_offset=0.1
+        )
+        robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
+            target_position=obj_pos,steps=10
+        )
+        for i in robot_angle:
+            self.move_real_and_virtual(radian=i)
+            time.sleep(0.1)
+        self.grap()
+        time.sleep(1.0)
+        self.init_pose(grap=True)
+        time.sleep(1.0)
         self.rotate_car()
+        self.rotate_wrist()
+        time.sleep(0.2)
+        for i in range(10):
+            self.arm_commute_node.publish_pos()
+            time.sleep(0.1)
         return ArmGoal.Result(success=True, message="success")
+
+    def rotate_wrist(self):
+        self.arm_agnle_control.arm_index_change(3, 90)
+        self.arm_commute_node.publish_arm_angle()
 
     def rotate_car(self):
         # 取得當前車體朝向
@@ -93,7 +102,6 @@ class ArmAutoController:
         t = self.pybullet_robot_controller.offset_from_end_effector(
             y_offset=0.1, z_offset=0.1
         )
-        print(t[0:5])
         self.pybullet_robot_controller.setJointPosition(position=t[0:5])
         self.pybullet_robot_controller.draw_link_axes(link_name="camera_1")
         return ArmGoal.Result(success=True, message="success")
@@ -130,8 +138,8 @@ class ArmAutoController:
         return ArmGoal.Result(success=True, message="success")
 
     def test(self):
-        print("!!!!!")
-        self.rotate_car()
+        # self.rotate_car()
+        self.arm_commute_node.publish_pos()
         return ArmGoal.Result(success=True, message="success")
 
     def look_up(self):

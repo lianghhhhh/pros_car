@@ -41,6 +41,7 @@ class ModeManager:
                 or title == "right"
                 or title == "backward"
                 or title == "forward"
+                or title == "test"
             ):
                 if subtitle == "q":
                     self.ros_manager.arm_action_client.cancel_arm()

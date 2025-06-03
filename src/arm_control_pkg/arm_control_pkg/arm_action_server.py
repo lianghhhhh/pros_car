@@ -77,6 +77,7 @@ class ArmActionServer(Node):
         """
         根據模式選擇對應的 arm_auto_controller 方法或創建一個可調用對象。
         """
+        print(mode)
         if mode == "wave":
             return self.arm_auto_controller.arm_wave
         elif mode == "catch":

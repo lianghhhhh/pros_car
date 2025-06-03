@@ -4,9 +4,13 @@ from std_msgs.msg import Float32MultiArray, String
 from trajectory_msgs.msg import JointTrajectoryPoint
 from sensor_msgs.msg import Imu  # Import the Imu message type
 import math
+from rclpy.clock import Clock
+from builtin_interfaces.msg import Time
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 import json  # Import the json module
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Twist
+from visualization_msgs.msg import Marker
 
 # can change one index angle
 # chnage the angle of all joints
@@ -33,6 +37,18 @@ class ArmCummuteNode(Node):
         self.front_wheel_pub = self.create_publisher(
             Float32MultiArray,
             'car_C_front_wheel',
+            10
+        )
+
+        self.goal_pose_pub = self.create_publisher(
+            PoseStamped,
+            'goal_pose_tmp',
+            10
+        )
+
+        self.marker_pub = self.create_publisher(
+            Marker,
+            'goal_marker',
             10
         )
 
@@ -105,7 +121,56 @@ class ArmCummuteNode(Node):
         orientation = self.latest_imu_data.orientation
         return [orientation.x, orientation.y, orientation.z, orientation.w]
 
-    
+    def publish_pos(self):
+        """Publish a goal 50cm in front of the current orientation + Marker"""
+        position, orientation = self.get_car_position_and_orientation()
+
+        quat = [orientation.x, orientation.y, orientation.z, orientation.w]
+        rot = R.from_quat(quat)
+        forward_vec = np.array([1.0, 0.0, 0.0])  # 向前 50cm
+        offset = rot.apply(forward_vec)
+
+        goal_position = [
+            position.x + offset[0],
+            position.y + offset[1],
+            position.z + offset[2]
+        ]
+
+        # PoseStamped 發佈
+        msg = PoseStamped()
+        msg.header.stamp = Clock().now().to_msg()
+        msg.header.frame_id = "map"
+        msg.pose.position.x = goal_position[0]
+        msg.pose.position.y = goal_position[1]
+        msg.pose.position.z = goal_position[2]
+        msg.pose.orientation = orientation
+        self.goal_pose_pub.publish(msg)
+
+        # Marker 發佈
+        marker = Marker()
+        marker.header.stamp = msg.header.stamp
+        marker.header.frame_id = "map"
+        marker.ns = "goal_marker"
+        marker.id = 0
+        marker.type = Marker.ARROW  # 你也可以用 SPHERE 或 CUBE
+        marker.action = Marker.ADD
+        marker.pose.position.x = goal_position[0]
+        marker.pose.position.y = goal_position[1]
+        marker.pose.position.z = goal_position[2]
+        marker.pose.orientation = orientation  # 箭頭朝向
+
+        marker.scale.x = 0.4  # 箭頭長度
+        marker.scale.y = 0.1  # 箭頭寬度
+        marker.scale.z = 0.1  # 箭頭高度
+
+        marker.color.a = 1.0  # alpha 透明度
+        marker.color.r = 1.0  # 紅色
+        marker.color.g = 0.0
+        marker.color.b = 0.0
+
+        self.marker_pub.publish(marker)
+        self.get_logger().info("Published goal marker at 50cm front")
+        
 
     def publish_control(self, vel):
         # Both publishers are available
