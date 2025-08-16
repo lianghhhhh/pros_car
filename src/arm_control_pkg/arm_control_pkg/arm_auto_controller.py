@@ -16,15 +16,16 @@ class ArmAutoController:
         self.depth = 100.0
 
     def catch(self):
-        while self.depth > 0.3:
+        label = "ball"
+        while self.depth > 0.4:
             print(self.depth)
             try:
-                self.depth = self.arm_commute_node.get_latest_object_coordinates(label="ball")[0]
+                self.depth = self.arm_commute_node.get_latest_object_coordinates(label=label)[0]
             except:
                 continue
         while 1: 
             print("follow_obj")
-            if self.follow_obj(label="ball")  == True:
+            if self.follow_obj(label=label)  == True:
                 break
             # if self.follow_obj(label="ball") == True:
             #     break
@@ -34,10 +35,10 @@ class ArmAutoController:
         # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
         #     distance=0.4,z_offset = 0.05
         # )
-        data = self.arm_commute_node.get_latest_object_coordinates(label="ball")
+        data = self.arm_commute_node.get_latest_object_coordinates(label=label)
         depth = data[0]
         obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-            distance=depth + 0.05,z_offset=0.1
+            distance=depth + 0.15,z_offset=0.15
         )
         robot_angle = self.pybullet_robot_controller.generateInterpolatedTrajectory(
             target_position=obj_pos,steps=10
@@ -122,7 +123,7 @@ class ArmAutoController:
             return []  # Or raise an error
 
     def grap(self):
-        self.arm_agnle_control.arm_index_change(4, 10)
+        self.arm_agnle_control.arm_index_change(4, 0)
         self.arm_commute_node.publish_arm_angle()
 
     def init_pose(self, grap=False):
