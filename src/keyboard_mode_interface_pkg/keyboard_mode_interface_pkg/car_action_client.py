@@ -1,6 +1,6 @@
+from action_msgs.msg import GoalStatus
 from action_interface.action import NavGoal
 from keyboard_mode_interface_pkg.base_action_client import BaseActionClient
-from action_msgs.msg import GoalStatus
 
 
 class CarActionClient(BaseActionClient):

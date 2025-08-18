@@ -1,7 +1,6 @@
 # nav_result_handler.py
 
 from action_msgs.msg import GoalStatus
-from std_msgs.msg import String
 
 status_names = {
     GoalStatus.STATUS_UNKNOWN: "UNKNOWN",

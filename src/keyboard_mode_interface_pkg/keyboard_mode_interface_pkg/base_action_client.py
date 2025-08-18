@@ -1,4 +1,3 @@
-import rclpy
 from rclpy.action import ActionClient
 from action_msgs.msg import GoalStatus
 from keyboard_mode_interface_pkg.action_server_handler import handle_action_result

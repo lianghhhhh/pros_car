@@ -1,9 +1,7 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.action import ActionServer, GoalResponse, CancelResponse
 from action_interface.action import NavGoal
-from car_control_pkg.car_control_common import BaseCarControlNode
-import functools  # Import functools
+from rclpy.action import ActionServer, GoalResponse, CancelResponse
 from car_control_pkg.car_nav_controller import NavigationController
 
 

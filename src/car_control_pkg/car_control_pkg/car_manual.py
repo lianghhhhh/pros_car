@@ -1,4 +1,3 @@
-import rclpy
 from car_control_pkg.car_control_common import BaseCarControlNode
 
 

@@ -1,8 +1,7 @@
 # Control arm depending on self.move_real_and_virtual
-from action_interface.action import ArmGoal
-import time
 import math
-from typing import Tuple, List
+import time
+from action_interface.action import ArmGoal
 from arm_control_pkg.utils import get_yaw_from_quaternion, normalize_angle
 
 class ArmAutoController:

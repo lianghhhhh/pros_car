@@ -1,16 +1,14 @@
-import rclpy
+import math
+import json
+import numpy as np
 from rclpy.node import Node
+from rclpy.clock import Clock
+from sensor_msgs.msg import Imu
+from visualization_msgs.msg import Marker
+from scipy.spatial.transform import Rotation as R
 from std_msgs.msg import Float32MultiArray, String
 from trajectory_msgs.msg import JointTrajectoryPoint
-from sensor_msgs.msg import Imu  # Import the Imu message type
-import math
-from rclpy.clock import Clock
-from builtin_interfaces.msg import Time
-import numpy as np
-from scipy.spatial.transform import Rotation as R
-import json  # Import the json module
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Twist
-from visualization_msgs.msg import Marker
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
 
 # can change one index angle
 # chnage the angle of all joints

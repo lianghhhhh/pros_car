@@ -3,6 +3,7 @@ class ModeManager:
         self.ros_manager = ros_manager
 
     def update_mode(self, pressed_key_info):
+        # pressed_key_info: {big_heading}:{sub_heading}:{key}
         title = pressed_key_info.split(":")[-2].replace(" ", "")
         subtitle = pressed_key_info.split(":")[-1]
         if subtitle == "down" or subtitle == "upwn":

@@ -1,12 +1,9 @@
-import rclpy
+import json
 from rclpy.node import Node
+from nav_msgs.msg import Path
 from std_msgs.msg import Float32MultiArray, String
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Twist
-from nav_msgs.msg import Path
 from car_control_pkg.utils import get_action_mapping, parse_control_signal
-import copy
-from car_control_pkg.nav2_utils import cal_distance
-import json
 
 
 class CarControlPublishers:

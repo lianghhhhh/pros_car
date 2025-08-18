@@ -1,9 +1,9 @@
-import urwid
-import rclpy
-from keyboard_mode_interface_pkg.ros_pub_sub import ROS2Manager
-from keyboard_mode_interface_pkg.mode_manager import ModeManager
 import os
+import rclpy
+import urwid
 import threading
+from keyboard_mode_interface_pkg.mode_manager import ModeManager
+from keyboard_mode_interface_pkg.ros2_manager import ROS2Manager
 
 
 class MenuApp:

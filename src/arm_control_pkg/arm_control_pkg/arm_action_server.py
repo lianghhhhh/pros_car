@@ -1,8 +1,8 @@
 import rclpy
+import functools
 from rclpy.node import Node
-from rclpy.action import ActionServer, GoalResponse, CancelResponse
 from action_interface.action import ArmGoal
-import functools  # Import functools
+from rclpy.action import ActionServer, GoalResponse, CancelResponse
 
 
 class ArmActionServer(Node):

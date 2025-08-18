@@ -1,8 +1,6 @@
-from math import pi
-from typing import Tuple
+import math
 import numpy as np
 from math import atan2, degrees
-import math
 
 """
 Calculate wheel speeds based on the given command velocity.
