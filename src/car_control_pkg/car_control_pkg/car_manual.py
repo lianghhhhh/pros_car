@@ -1,4 +1,4 @@
-from car_control_pkg.car_control_common import BaseCarControlNode
+from car_control_pkg.base_car_control_node import BaseCarControlNode
 
 
 class ManualControlNode(BaseCarControlNode):
