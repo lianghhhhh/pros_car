@@ -7,8 +7,7 @@ from keyboard_mode_interface_pkg.ros2_manager import ROS2Manager
 
 
 class MenuApp:
-    def __init__(self, ros_manager, mode_manager):
-        self.ros_manager = ros_manager
+    def __init__(self, mode_manager):
         self.mode_manager = mode_manager
 
         # 這個 Text 用來顯示動態的「Pressed key: ...」訊息
@@ -197,7 +196,7 @@ def main():
     ros_spin_thread.start()
 
     # Run UI in main thread
-    app = MenuApp(ros_manager, mode_manager)
+    app = MenuApp(mode_manager)
     try:
         app.run()
     finally:
