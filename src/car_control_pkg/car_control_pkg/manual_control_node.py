@@ -27,19 +27,3 @@ class ManualControlNode(BaseCarControlNode):
             self.publish_control("CLOCKWISE_ROTATION")
         elif key == "z" or key == "q":
             self.publish_control("STOP")
-
-
-# def main(args=None):
-#     rclpy.init(args=args)
-#     node = ManualControlNode()
-#     try:
-#         rclpy.spin(node)
-#     except KeyboardInterrupt:
-#         node.get_logger().info("Keyboard Interrupt，節點關閉中...")
-#     finally:
-#         node.destroy_node()
-#         rclpy.shutdown()
-
-
-# if __name__ == "__main__":
-#     main()

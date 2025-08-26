@@ -3,8 +3,8 @@ from rclpy.node import Node
 from nav_msgs.msg import Path
 from std_msgs.msg import Float32MultiArray, String
 from car_control_pkg.utils import parse_control_signal
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Twist
 from car_control_pkg.car_control_publishers import CarControlPublishers
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Twist
 
 class BaseCarControlNode(Node):
     """Base class for car control nodes providing common functionality"""

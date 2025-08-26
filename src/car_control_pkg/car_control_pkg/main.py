@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
-from car_control_pkg.car_manual import ManualControlNode
+from car_control_pkg.manual_control_node import ManualControlNode
 from car_control_pkg.base_car_control_node import BaseCarControlNode
 from car_control_pkg.car_action_server import NavigationActionServer
 
