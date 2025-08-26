@@ -6,7 +6,7 @@ from rclpy.action import ActionServer, GoalResponse, CancelResponse
 
 
 class ArmActionServer(Node):
-    def __init__(self, arm_commute_node, arm_auto_controller):
+    def __init__(self, arm_auto_controller):
         super().__init__("arm_action_server_node")
         self._action_server = ActionServer(
             self,
@@ -16,7 +16,6 @@ class ArmActionServer(Node):
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
         )
-        self.arm_commute_node = arm_commute_node
         self.arm_auto_controller = arm_auto_controller
         self.get_logger().info("Arm Action Server initialized")
 
