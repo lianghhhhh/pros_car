@@ -1,15 +1,13 @@
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
+from car_control_pkg.nav_control_node import NavControlNode
 from car_control_pkg.manual_control_node import ManualControlNode
-from car_control_pkg.base_car_control_node import BaseCarControlNode
 from car_control_pkg.car_action_server import NavigationActionServer
 
 
 def main(args=None):
     rclpy.init(args=args)
-    car_control_node = BaseCarControlNode(
-        node_name="car_control_node", enable_nav_subscribers=True
-    )
+    car_control_node = NavControlNode(enable_nav_subscribers=True)
     manual_control_node = ManualControlNode()
     action_server = NavigationActionServer(car_control_node=car_control_node)
     executor = MultiThreadedExecutor()

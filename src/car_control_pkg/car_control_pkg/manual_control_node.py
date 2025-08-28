@@ -1,10 +1,23 @@
+from std_msgs.msg import String
+from car_control_pkg.utils import parse_control_signal
 from car_control_pkg.base_car_control_node import BaseCarControlNode
-
 
 class ManualControlNode(BaseCarControlNode):
     def __init__(self):
         # Initialize the base class with the node name
         super().__init__("manual_control_node")
+
+        self.subscription = self.create_subscription(String, "car_control_signal", self.key_callback, 10)
+
+    # Common methods for all car control nodes
+    def key_callback(self, msg):
+        """Parse control signal and delegate to handle_command"""
+        mode, command = parse_control_signal(msg.data)  # Parse signal
+        if mode is None or command is None:
+            return
+
+        # Call the handle_command method that derived classes implement
+        self.handle_command(mode, command)
 
     def handle_command(self, mode, command):
         # Only handle Manual Control mode commands
