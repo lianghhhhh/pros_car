@@ -2,7 +2,7 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from car_control_pkg.nav_control_node import NavControlNode
 from car_control_pkg.manual_control_node import ManualControlNode
-from car_control_pkg.car_action_server import NavigationActionServer
+from car_control_pkg.nav_action_server import NavigationActionServer
 
 
 def main(args=None):

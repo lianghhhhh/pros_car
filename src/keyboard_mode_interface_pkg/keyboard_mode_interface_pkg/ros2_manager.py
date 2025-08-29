@@ -17,21 +17,11 @@ class ROS2Manager(Node):
             String, "arm_control_signal", 10
         )
 
-        self.test_publisher = self.create_publisher(String, "test", 10)
-
-        # Subscriber（接收來自其他節點的訊息）
-        self.subscription = self.create_subscription(
-            String, "menu_feedback", self.listener_callback, 10
-        )
-
         # create car action client
         self.car_action_client = CarActionClient(self)
 
         # create arm action client
         self.arm_action_client = ArmActionClient(self)
-
-        # self.arm_client = ActionClient(self, ArmGoal, "arm_action_server")
-        # self.current_arm_goal_handle = None
 
     def publish_car_signal(self, command):
         """發布選單的指令"""
@@ -43,7 +33,3 @@ class ROS2Manager(Node):
         msg = String()
         msg.data = command
         self.arm_control_publisher.publish(msg)
-
-    def listener_callback(self, msg):
-        """監聽來自其他節點的回應"""
-        self.get_logger().info(f"收到回應: {msg.data}")

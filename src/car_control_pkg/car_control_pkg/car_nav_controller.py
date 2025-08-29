@@ -57,8 +57,7 @@ class NavigationController:
                 if self.nav_end_flag == 1:
                     self.car_control_node.clear_plan()
                     self.car_control_node.clear_goal_pose()
-                    self.car_control_node.publish_control("COUNTERCLOCKWISE_ROTATION_SLOW")
-            # self.car_control_node.publish_control("STOP")                
+                    self.car_control_node.publish_control("COUNTERCLOCKWISE_ROTATION_SLOW")               
         else:
             self.nav_end_flag = 0
             y_offset = coordinate["ball"][1]
@@ -75,8 +74,7 @@ class NavigationController:
                 )
             action = self.choose_action_y_offset(y_offset,object_depth)
             self.car_control_node.publish_control(action)
-            
-        # print(self.car_control_node.get_latest_object_coordinates())
+
     def choose_action_y_offset(self, y_offset, object_depth):
         if object_depth >= 0.5:
             limit = 0.5
@@ -84,13 +82,10 @@ class NavigationController:
             limit = 0.1
         if y_offset > -limit and y_offset < limit:
             return "FORWARD_SLOW"
-            self.car_control_node.publish_control("FORWARD_SLOW")
         elif y_offset >= limit: # 物體在左
             return "COUNTERCLOCKWISE_ROTATION_SLOW"
-            self.car_control_node.publish_control("COUNTERCLOCKWISE_ROTATION_SLOW")
         elif y_offset <= -limit:
             return "CLOCKWISE_ROTATION_SLOW"
-            self.car_control_node.publish_control("CLOCKWISE_ROTATION_SLOW")
 
     def manual_nav(self):
         result = self.check_prerequisites()
