@@ -8,7 +8,7 @@ class ManualControlNode(Node):
         super().__init__("manual_arm_control_node")
         self.arm_commute_node = arm_commute_node
         self.arm_angle_control_node = arm_angle_control_node
-        self.arm_params = arm_params.get_arm_params()
+        self.arm_params = arm_params
 
         self.subscription = self.create_subscription(
             String, "arm_control_signal", self.arm_control_signal_callback, 10

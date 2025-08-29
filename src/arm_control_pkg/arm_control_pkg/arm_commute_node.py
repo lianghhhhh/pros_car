@@ -20,7 +20,7 @@ class ArmCummuteNode(Node):
         super().__init__("arm_commute_node")
         self.arm_angle_control = arm_angle_control
         # Load parameters first
-        self.arm_params = arm_params.get_arm_params()
+        self.arm_params = arm_params
 
         # Initialize arm parameters publisher
         self.arm_pub = self.create_publisher(

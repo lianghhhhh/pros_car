@@ -6,12 +6,11 @@ from arm_control_pkg.utils import get_yaw_from_quaternion, normalize_angle
 
 class ArmAutoController:
     def __init__(
-        self, arm_params, arm_commute_node, pybulletRobotController, arm_agnle_control
+        self, arm_commute_node, pybulletRobotController, arm_angle_control
     ):
-        self.arm_params = arm_params.get_arm_params()
         self.pybullet_robot_controller = pybulletRobotController
         self.arm_commute_node = arm_commute_node
-        self.arm_agnle_control = arm_agnle_control
+        self.arm_angle_control = arm_angle_control
         self.depth = 100.0
 
     def catch(self):
@@ -58,7 +57,7 @@ class ArmAutoController:
         return ArmGoal.Result(success=True, message="success")
 
     def rotate_wrist(self):
-        self.arm_agnle_control.arm_index_change(3, 90)
+        self.arm_angle_control.arm_index_change(3, 90)
         self.arm_commute_node.publish_arm_angle()
 
     def rotate_car(self):
@@ -122,13 +121,13 @@ class ArmAutoController:
             return []  # Or raise an error
 
     def grap(self):
-        self.arm_agnle_control.arm_index_change(4, 0)
+        self.arm_angle_control.arm_index_change(4, 0)
         self.arm_commute_node.publish_arm_angle()
 
     def init_pose(self, grap=False):
-        angle = self.arm_agnle_control.arm_default_change()
+        angle = self.arm_angle_control.arm_default_change()
         if grap:
-            self.arm_agnle_control.arm_index_change(4, 30)
+            self.arm_angle_control.arm_index_change(4, 30)
             self.arm_commute_node.publish_arm_angle()
             time.sleep(1.0)
         self.arm_commute_node.publish_arm_angle()
@@ -143,7 +142,7 @@ class ArmAutoController:
         return ArmGoal.Result(success=True, message="success")
 
     def look_up(self):
-        self.arm_agnle_control.arm_index_change(2, 140)
+        self.arm_angle_control.arm_index_change(2, 140)
         self.arm_commute_node.publish_arm_angle()
 
     def _is_at_target(
@@ -264,7 +263,7 @@ class ArmAutoController:
         self.pybullet_robot_controller.setJointPosition(position=radian)
         degree = self.radians_to_degrees(radian)
         degree[-1] = 90
-        self.arm_agnle_control.arm_all_change(degree)
+        self.arm_angle_control.arm_all_change(degree)
         self.arm_commute_node.publish_arm_angle()
 
     def move_forward_backward(self, direction="forward", distance=0.1):

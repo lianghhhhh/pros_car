@@ -12,6 +12,8 @@
 # 3. end-eff_index: specify the joint indices for end-effector link. If not specified, by default the last controllable_joints is considered as end-effector joint
 # 4. time_Step: time step for simulation
 
+# 處理逆向動力學(Inverse kinematics)，給一個點，計算各種角度讓手臂伸到那個點
+
 import pybullet as p
 import numpy as np
 import time
@@ -26,7 +28,7 @@ import pybullet_data
 
 class PybulletRobotController:
     def __init__(self, arm_params, arm_angle_control_node):
-        self.arm_params = arm_params.get_arm_params()
+        self.arm_params = arm_params
         self.arm_angle_control_node = arm_angle_control_node
         # self.robot_type = "ur5"
         robot_description_path = get_package_share_directory("robot_description")

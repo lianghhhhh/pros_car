@@ -6,7 +6,7 @@ all angle need to thought self.joint_positions to change
 
 class ArmAngleControl:
     def __init__(self, arm_params):
-        self.arm_params = arm_params.get_arm_params()
+        self.arm_params = arm_params
         self.joint_positions = []
         self.arm_init()
 
