@@ -10,16 +10,17 @@ from std_msgs.msg import Float32MultiArray, String
 from trajectory_msgs.msg import JointTrajectoryPoint
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
 
-# can change one index angle
-# chnage the angle of all joints
-# can increase or decrease a single joint angle
+''' 
+Node for arm communication and control
+publish and subscribe to relevant topics
+'''
 
 
-class ArmCummuteNode(Node):
+class ArmCommuteNode(Node):
     def __init__(self, arm_params, arm_angle_control):
         super().__init__("arm_commute_node")
-        self.arm_angle_control = arm_angle_control
         # Load parameters first
+        self.arm_angle_control = arm_angle_control
         self.arm_params = arm_params
 
         # Initialize arm parameters publisher
@@ -213,9 +214,7 @@ class ArmCummuteNode(Node):
 
             # Update the stored coordinates
             self.object_coordinates = new_coordinates
-            # self.get_logger().info(
-            #     f"Updated object coordinates: {self.object_coordinates}"
-            # )
+
         except json.JSONDecodeError as e:
             self.get_logger().error(f"Failed to decode JSON string: {e}")
             self.get_logger().error(f"Received string: {msg.data}")
@@ -274,4 +273,3 @@ class ArmCummuteNode(Node):
         msg.time_from_start.sec = 0
         msg.time_from_start.nanosec = 0
         self.arm_pub.publish(msg)
-        # self.get_logger().info(f"Published angles in radians: {radian_positions}")

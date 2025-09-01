@@ -25,14 +25,9 @@ class ArmAutoController:
             print("follow_obj")
             if self.follow_obj(label=label)  == True:
                 break
-            # if self.follow_obj(label="ball") == True:
-            #     break
 
         # reset depth
         self.depth = 100.0
-        # obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
-        #     distance=0.4,z_offset = 0.05
-        # )
         data = self.arm_commute_node.get_latest_object_coordinates(label=label)
         depth = data[0]
         obj_pos = self.pybullet_robot_controller.markPointInFrontOfEndEffector(
@@ -95,9 +90,6 @@ class ArmAutoController:
         pass
 
     def arm_ik_move(self):
-        # t = self.pybullet_robot_controller.move_end_effector_laterally()
-        # print(t[0:5])
-        # self.pybullet_robot_controller.setJointPosition(position=t[0:5])
         t = self.pybullet_robot_controller.offset_from_end_effector(
             y_offset=0.1, z_offset=0.1
         )

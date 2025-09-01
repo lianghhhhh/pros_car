@@ -2,7 +2,7 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 from arm_control_pkg.utils import load_arm_parameters
 from arm_control_pkg.arm_manual import ManualControlNode
-from arm_control_pkg.arm_commute_node import ArmCummuteNode
+from arm_control_pkg.arm_commute_node import ArmCommuteNode
 from arm_control_pkg.arm_angle_control import ArmAngleControl
 from arm_control_pkg.arm_action_server import ArmActionServer
 from arm_control_pkg.pybullet_ik import PybulletRobotController
@@ -13,7 +13,7 @@ def main(args=None):
     rclpy.init(args=args)
     arm_params = load_arm_parameters("arm_control_pkg")
     arm_angle_control = ArmAngleControl(arm_params=arm_params)
-    arm_commute_node = ArmCummuteNode(
+    arm_commute_node = ArmCommuteNode(
         arm_params=arm_params, arm_angle_control=arm_angle_control
     )
     pybulletRobotController = PybulletRobotController(
@@ -40,10 +40,8 @@ def main(args=None):
     try:
         executor.spin()
     except KeyboardInterrupt:
-        # action_server.get_logger().info("Keyboard interrupt, shutting down...")
         pass
     finally:
-        # action_server.destroy_node()
         rclpy.shutdown()
 
 

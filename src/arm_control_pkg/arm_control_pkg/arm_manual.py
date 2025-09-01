@@ -4,7 +4,6 @@ from std_msgs.msg import String
 
 class ManualControlNode(Node):
     def __init__(self, arm_commute_node, arm_angle_control_node, arm_params):
-        # Initialize the base class with the node name
         super().__init__("manual_arm_control_node")
         self.arm_commute_node = arm_commute_node
         self.arm_angle_control_node = arm_angle_control_node
