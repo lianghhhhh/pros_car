@@ -125,7 +125,8 @@ class ArmAutoController:
         self.arm_commute_node.publish_arm_angle()
 
     def init_pose(self, grap=False):
-        angle = self.arm_angle_control.arm_default_change()
+        self.arm_angle_control.arm_default_change()
+        angle = self.arm_angle_control.get_arm_angles()
         if grap:
             self.arm_angle_control.arm_index_change(4, 30)
             self.arm_commute_node.publish_arm_angle()

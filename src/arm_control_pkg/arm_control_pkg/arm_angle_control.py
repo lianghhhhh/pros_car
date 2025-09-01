@@ -15,9 +15,13 @@ class ArmAngleControl:
 
     def arm_init(self):
         """Initialize arm joints to reset positions"""
+        self.arm_default_change()
+        print(f"Initialized arm with positions: {self.joint_positions}")
+
+    def arm_default_change(self):
+        """Change a joint angle to its default position"""
         joints_count = int(self.arm_params["global"]["joints_count"])
         self.joint_positions = []
-
         for i in range(joints_count):
             try:
                 pos = float(self.arm_params["joints_reset"][i])
@@ -27,16 +31,6 @@ class ArmAngleControl:
                     f"Joint {i} has invalid or missing reset_position. Using default 90.0."
                 )
             self.joint_positions.append(pos)
-
-        print(f"Initialized arm with positions: {self.joint_positions}")
-
-    def arm_default_change(self):
-        """Change a joint angle to its default position"""
-        # Get the total number of joints from config
-        joints_reset = self.arm_params["joints_reset"]
-        for index in range(len(self.joint_positions)):
-            self.joint_positions[index] = float(joints_reset[index])
-        return self.joint_positions
 
     def arm_index_change(self, index, angle):
         """Just change a joint angle to a specified value"""
@@ -73,7 +67,6 @@ class ArmAngleControl:
 
     def validate_joint_limits(self, positions):
         """Validate joint positions against limits from YAML config"""
-        # Make a copy to avoid modifying the original list
         for joint_key in range(len(positions)):
             min_angle = float(
                 self.arm_params["joints"][joint_key].get("min_angle", 0.0)
@@ -84,5 +77,4 @@ class ArmAngleControl:
             positions[joint_key] = max(min(positions[joint_key], max_angle), min_angle)
 
         # Return the validated positions
-        # print(f"Final validated positions: {positions}")
         return positions
